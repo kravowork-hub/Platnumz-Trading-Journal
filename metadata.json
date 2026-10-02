@@ -1,0 +1,6 @@
+{
+  "name": "Kravo Trading Journal",
+  "description": "Professional Android trading journal and performance analytics terminal for mobile traders. Track trades, equity curves, discipline score, and recurring mistakes offline and on the go.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
