@@ -1,35 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Trade, 
-  Direction, 
-  TradeStatus, 
-  TradingSession, 
-  Timeframe, 
-  StrategyDefinition, 
-  ChecklistItem, 
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Trade,
+  Direction,
+  TradeStatus,
+  Timeframe,
+  StrategyDefinition,
+  ChecklistItem,
   MistakeTag,
   AccountSettings,
-  ScreenshotAttachment
+  ScreenshotAttachment,
 } from '../types';
-import { 
-  calculatePlannedRR, 
-  calculateTradeOutcome, 
-  formatCurrency, 
-  formatR 
+import {
+  calculatePlannedRR,
+  calculateTradeOutcome,
+  formatCurrency,
+  formatR,
 } from '../utils/calculations';
 import { Haptics } from '../utils/haptics';
-import { 
-  X, 
-  Camera, 
-  CheckSquare, 
-  AlertTriangle, 
-  Calculator, 
-  TrendingUp, 
-  TrendingDown, 
-  HelpCircle,
-  Plus,
+import { WELTRADE_SYNTX_SPECS } from '../utils/weltradeSyntXRegistry';
+import {
+  X,
+  Search,
+  ChevronDown,
+  TrendingUp,
+  TrendingDown,
+  Check,
+  AlertTriangle,
+  Image as ImageIcon,
   Trash2,
-  Image as ImageIcon
+  Camera,
+  Activity,
 } from 'lucide-react';
 
 interface TradeModalProps {
@@ -44,17 +44,9 @@ interface TradeModalProps {
   tradeCount: number;
 }
 
-const COMMON_INSTRUMENTS = ['EURUSD', 'NQ', 'ES', 'XAUUSD', 'BTCUSDT', 'GBPUSD', 'US30', 'ETHUSDT'];
 const TIMEFRAMES: Timeframe[] = ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1'];
-const SESSIONS: { id: TradingSession; label: string }[] = [
-  { id: 'LONDON', label: 'London' },
-  { id: 'NEW_YORK', label: 'New York' },
-  { id: 'ASIAN', label: 'Asian' },
-  { id: 'OVERLAP', label: 'London/NY Overlap' },
-  { id: 'FRANKFURT', label: 'Frankfurt' },
-];
 
-const AVAILABLE_MISTAKES: MistakeTag[] = [
+const MISTAKES: MistakeTag[] = [
   'FOMO',
   'Revenge trade',
   'Overtrading',
@@ -64,11 +56,29 @@ const AVAILABLE_MISTAKES: MistakeTag[] = [
   'Entered too late',
   'Oversized position',
   'Ignored setup',
-  'Traded outside session',
   'Traded during news',
   'Chased candle',
   'No stop loss',
 ];
+
+const GROUP_ORDER = [
+  'FX Vol',
+  'SFX Vol',
+  'PainX',
+  'GainX',
+  'MAX PainX',
+  'MAX GainX',
+  'FlipX',
+  'SwitchX',
+  'BreakX',
+  'TrendX',
+  'PlusX',
+  'FiboX',
+  'QuadX',
+  'Other',
+] as const;
+
+const SYNTX_SYMBOLS = Object.values(WELTRADE_SYNTX_SPECS);
 
 export const TradeModal: React.FC<TradeModalProps> = ({
   isOpen,
@@ -85,125 +95,146 @@ export const TradeModal: React.FC<TradeModalProps> = ({
   const todayStr = now.toISOString().split('T')[0];
   const timeStr = now.toTimeString().substring(0, 5);
 
-  // Form State
-  const [activeTab, setActiveTab] = useState<'DETAILS' | 'CHECKLIST' | 'SCREENSHOTS'>('DETAILS');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [instrument, setInstrument] = useState(editingTrade?.instrument || 'EURUSD');
+  const [activeTab, setActiveTab] = useState<'DETAILS' | 'CHECKLIST' | 'CHARTS'>('DETAILS');
+  const [instrument, setInstrument] = useState(editingTrade?.instrument || SYNTX_SYMBOLS[0]?.symbol || 'FX Vol 20');
   const [direction, setDirection] = useState<Direction>(editingTrade?.direction || 'LONG');
-  const [status, setStatus] = useState<TradeStatus>(editingTrade?.status || 'WIN');
+  const [status, setStatus] = useState<TradeStatus>(editingTrade?.status || 'OPEN');
   const [entryDate, setEntryDate] = useState(editingTrade?.entryDate || todayStr);
   const [entryTime, setEntryTime] = useState(editingTrade?.entryTime || timeStr);
   const [timeframe, setTimeframe] = useState<Timeframe>(editingTrade?.timeframe || 'M5');
-  const [session, setSession] = useState<TradingSession>(editingTrade?.session || 'LONDON');
-  
-  // Strategy & Setup
   const [strategy, setStrategy] = useState(editingTrade?.strategy || strategies[0]?.name || 'ICT / SMC Concepts');
-  const currentStrategyObj = strategies.find(s => s.name === strategy) || strategies[0];
-  const [setup, setSetup] = useState(editingTrade?.setup || currentStrategyObj?.setups[0] || 'Liquidity Sweep');
+  const [setup, setSetup] = useState(editingTrade?.setup || strategies[0]?.setups[0] || 'Liquidity Sweep');
 
-  // Prices
-  const [entryPrice, setEntryPrice] = useState<string>(editingTrade?.entryPrice?.toString() || '');
-  const [stopLossPrice, setStopLossPrice] = useState<string>(editingTrade?.stopLossPrice?.toString() || '');
-  const [takeProfitPrice, setTakeProfitPrice] = useState<string>(editingTrade?.takeProfitPrice?.toString() || '');
-  const [exitPrice, setExitPrice] = useState<string>(editingTrade?.exitPrice?.toString() || '');
+  const [entryPrice, setEntryPrice] = useState(editingTrade?.entryPrice?.toString() || '');
+  const [stopLossPrice, setStopLossPrice] = useState(editingTrade?.stopLossPrice?.toString() || '');
+  const [takeProfitPrice, setTakeProfitPrice] = useState(editingTrade?.takeProfitPrice?.toString() || '');
+  const [exitPrice, setExitPrice] = useState(editingTrade?.exitPrice?.toString() || '');
 
-  // Risk parameters
-  const [accountBalance, setAccountBalance] = useState<number>(editingTrade?.accountBalanceAtEntry || settings.currentBalance);
-  const [riskPercentage, setRiskPercentage] = useState<number>(editingTrade?.riskPercentage || settings.defaultRiskPercentage);
-  const [positionSize, setPositionSize] = useState<string>(editingTrade?.positionSize?.toString() || '1');
-
-  // Checklist
-  const [checklist, setChecklist] = useState<ChecklistItem[]>(
-    editingTrade?.checklist || checklistTemplate.map(c => ({ ...c, checked: false }))
+  const [accountBalance] = useState(editingTrade?.accountBalanceAtEntry || settings.currentBalance);
+  const [riskPercentage, setRiskPercentage] = useState(
+    editingTrade?.riskPercentage || settings.defaultRiskPercentage
+  );
+  const [positionSize, setPositionSize] = useState(
+    editingTrade?.positionSize?.toString() || '1'
   );
 
-  // Mistakes & Notes
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(
+    editingTrade?.checklist || checklistTemplate.map(item => ({ ...item, checked: false }))
+  );
   const [selectedMistakes, setSelectedMistakes] = useState<MistakeTag[]>(editingTrade?.mistakes || []);
   const [notes, setNotes] = useState(editingTrade?.notes || '');
-
-  // Screenshots
-  const [screenshots, setScreenshots] = useState<ScreenshotAttachment[]>(editingTrade?.screenshots || []);
+  const [screenshots, setScreenshots] = useState<ScreenshotAttachment[]>(
+    editingTrade?.screenshots || []
+  );
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Update setup list when strategy changes
+  const [instrumentSearch, setInstrumentSearch] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState<string>('All');
+
+  const selectedSpec = WELTRADE_SYNTX_SPECS[instrument];
+
   useEffect(() => {
-    if (!editingTrade) {
-      const match = strategies.find(s => s.name === strategy);
-      if (match && match.setups.length > 0) {
-        setSetup(match.setups[0]);
-      }
-    }
+    if (editingTrade) return;
+    const selectedStrategy = strategies.find(item => item.name === strategy);
+    if (selectedStrategy?.setups?.length) setSetup(selectedStrategy.setups[0]);
   }, [strategy, strategies, editingTrade]);
 
-  // Numeric values
-  const numEntry = parseFloat(entryPrice) || 0;
-  const numStop = parseFloat(stopLossPrice) || 0;
-  const numTakeProfit = parseFloat(takeProfitPrice) || 0;
-  const numExit = parseFloat(exitPrice) || 0;
-  const numPosSize = parseFloat(positionSize) || 1;
+  useEffect(() => {
+    if (!isOpen) return;
+    setFormError(null);
+    setInstrumentSearch('');
+    setSelectedGroup('All');
+  }, [isOpen]);
 
-  // Real-time calculations
-  const dollarRisk = Number(((accountBalance * (riskPercentage / 100))).toFixed(2));
+  const filteredSymbols = useMemo(() => {
+    const query = instrumentSearch.trim().toLowerCase();
+    return SYNTX_SYMBOLS.filter(spec => {
+      const groupMatch = selectedGroup === 'All' || spec.group === selectedGroup;
+      const searchMatch =
+        !query ||
+        spec.symbol.toLowerCase().includes(query) ||
+        spec.group.toLowerCase().includes(query);
+      return groupMatch && searchMatch;
+    });
+  }, [instrumentSearch, selectedGroup]);
+
+  const numEntry = Number.parseFloat(entryPrice) || 0;
+  const numStop = Number.parseFloat(stopLossPrice) || 0;
+  const numTakeProfit = Number.parseFloat(takeProfitPrice) || 0;
+  const numExit = Number.parseFloat(exitPrice) || 0;
+  const numPosSize = Number.parseFloat(positionSize) || 1;
+
+  const dollarRisk = Number((accountBalance * (riskPercentage / 100)).toFixed(2));
   const plannedRR = calculatePlannedRR(direction, numEntry, numStop, numTakeProfit);
-  
-  // Realized outcome if closed
-  const effectiveExit = numExit || (status === 'WIN' ? numTakeProfit : status === 'LOSS' ? numStop : numEntry);
-  const outcome = (numEntry > 0 && numStop > 0 && status !== 'OPEN')
-    ? calculateTradeOutcome(direction, numEntry, numStop, effectiveExit, dollarRisk, numPosSize)
-    : { pnl: 0, realizedR: 0, pnlPercentage: 0 };
+  const effectiveExit =
+    numExit ||
+    (status === 'WIN' ? numTakeProfit : status === 'LOSS' ? numStop : numEntry);
 
-  // Risk Limit Warning
-  const isOverRisk = riskPercentage > settings.maxRiskPerTrade;
+  const outcome =
+    numEntry > 0 && numStop > 0 && status !== 'OPEN'
+      ? calculateTradeOutcome(
+          direction,
+          numEntry,
+          numStop,
+          effectiveExit,
+          dollarRisk,
+          numPosSize
+        )
+      : { pnl: 0, realizedR: 0, pnlPercentage: 0 };
 
-  // Toggle checklist item
-  const toggleChecklistItem = (id: string) => {
-    setChecklist(prev => prev.map(item => item.id === id ? { ...item, checked: !item.checked } : item));
-  };
-
-  // Toggle mistake tag
-  const toggleMistake = (tag: MistakeTag) => {
-    setSelectedMistakes(prev => 
-      prev.includes(tag) ? prev.filter(m => m !== tag) : [...prev, tag]
+  const toggleChecklist = (id: string) => {
+    setChecklist(items =>
+      items.map(item => (item.id === id ? { ...item, checked: !item.checked } : item))
     );
   };
 
-  // Handle local screenshot upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'BEFORE' | 'ENTRY' | 'AFTER') => {
-    const file = e.target.files?.[0];
+  const toggleMistake = (tag: MistakeTag) => {
+    setSelectedMistakes(current =>
+      current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag]
+    );
+  };
+
+  const handleScreenshot = (
+    event: React.ChangeEvent<HTMLInputElement>,
+    type: ScreenshotAttachment['type']
+  ) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      const newAttachment: ScreenshotAttachment = {
-        id: `ss_${Date.now()}`,
-        type,
-        url: dataUrl,
-        timestamp: new Date().toISOString(),
-        caption: `${type} Chart - ${instrument}`,
-      };
-      setScreenshots(prev => [...prev.filter(s => s.type !== type), newAttachment]);
+    reader.onload = e => {
+      const url = e.target?.result as string;
+      setScreenshots(current => [
+        ...current.filter(item => item.type !== type),
+        {
+          id: `ss_${Date.now()}`,
+          type,
+          url,
+          timestamp: new Date().toISOString(),
+          caption: `${type} chart - ${instrument}`,
+        },
+      ]);
     };
     reader.readAsDataURL(file);
-  };
-
-  const removeScreenshot = (id: string) => {
-    setScreenshots(prev => prev.filter(s => s.id !== id));
   };
 
   const handleSave = () => {
     if (!instrument.trim() || numEntry <= 0 || numStop <= 0) {
       Haptics.warning();
-      setFormError('Please enter a valid instrument, entry price, and stop loss.');
+      setFormError('Enter a valid SyntX instrument, entry price and stop loss.');
       return;
     }
-    setFormError(null);
-    Haptics.success();
 
-    const tradeToSave: Trade = {
+    if (numTakeProfit <= 0 && status !== 'OPEN') {
+      Haptics.warning();
+      setFormError('Enter a take-profit price for a closed trade.');
+      return;
+    }
+
+    const trade: Trade = {
       id: editingTrade?.id || `trade_${Date.now()}`,
       tradeNumber: editingTrade?.tradeNumber || tradeCount + 1,
-      instrument: instrument.toUpperCase().trim(),
+      instrument: instrument.trim(),
       direction,
       status,
       entryDate,
@@ -211,7 +242,8 @@ export const TradeModal: React.FC<TradeModalProps> = ({
       exitDate: status !== 'OPEN' ? entryDate : undefined,
       exitTime: status !== 'OPEN' ? timeStr : undefined,
       timeframe,
-      session,
+      // SyntX trades do not use London/New York/Asian session classification.
+      session: 'AFTER_HOURS',
       strategy,
       setup,
       entryPrice: numEntry,
@@ -235,549 +267,476 @@ export const TradeModal: React.FC<TradeModalProps> = ({
       updatedAt: new Date().toISOString(),
     };
 
-    onSaveTrade(tradeToSave);
-    onClose();
+    Haptics.success();
+    onSaveTrade(trade);
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto">
-      <div className="w-full sm:max-w-lg bg-[#0F121B] rounded-t-3xl sm:rounded-2xl border border-[#202738] shadow-2xl flex flex-col max-h-[92vh] text-white">
-        
-        {/* Top Header */}
-        <div className="px-5 py-3.5 border-b border-[#1C2233] flex items-center justify-between">
-          <div>
-            <span className="text-[11px] font-mono text-emerald-400 font-semibold tracking-wider">
-              {editingTrade ? `EDIT TRADE #${editingTrade.tradeNumber}` : 'FAST TRADE ENTRY'}
-            </span>
-            <h2 className="text-lg font-bold text-gray-100 flex items-center gap-2">
-              <span>{instrument}</span>
-              <span className={`text-xs px-2 py-0.5 rounded font-mono font-bold ${
-                direction === 'LONG' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'
-              }`}>
-                {direction}
-              </span>
-            </h2>
-          </div>
-
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-[#181D2A] hover:bg-[#22293B] text-gray-400 flex items-center justify-center transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Form Error Banner */}
-        {formError && (
-          <div className="mx-4 mt-2.5 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between">
-            <span className="flex items-center gap-1.5 font-medium">
-              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-              {formError}
-            </span>
-            <button onClick={() => setFormError(null)} className="p-1 hover:text-white">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {/* Tab Switcher: Details | Checklist | Screenshots */}
-        <div className="flex border-b border-[#1C2233] px-4 bg-[#0A0D14]">
-          <button
-            onClick={() => setActiveTab('DETAILS')}
-            className={`py-2.5 px-4 text-xs font-semibold border-b-2 transition ${
-              activeTab === 'DETAILS' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-gray-400'
-            }`}
-          >
-            1. Trade Details
-          </button>
-          <button
-            onClick={() => setActiveTab('CHECKLIST')}
-            className={`py-2.5 px-4 text-xs font-semibold border-b-2 flex items-center gap-1.5 transition ${
-              activeTab === 'CHECKLIST' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-gray-400'
-            }`}
-          >
-            <span>2. Checklist</span>
-            <span className="text-[10px] bg-[#1A2030] px-1.5 py-0.2 rounded-full text-emerald-400">
-              {checklist.filter(c => c.checked).length}/{checklist.length}
-            </span>
-          </button>
-          <button
-            onClick={() => setActiveTab('SCREENSHOTS')}
-            className={`py-2.5 px-4 text-xs font-semibold border-b-2 flex items-center gap-1.5 transition ${
-              activeTab === 'SCREENSHOTS' ? 'border-emerald-500 text-emerald-400' : 'border-transparent text-gray-400'
-            }`}
-          >
-            <span>3. Charts</span>
-            {screenshots.length > 0 && (
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 rounded-full">
-                {screenshots.length}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Tab 1: Trade Details */}
-        {activeTab === 'DETAILS' && (
-          <div className="p-4 space-y-4 overflow-y-auto flex-1">
-            
-            {/* Direction & Status Switchers */}
-            <div className="grid grid-cols-2 gap-2">
-              {/* Direction Toggle */}
-              <div className="bg-[#141824] p-1 rounded-xl flex border border-[#1F2638]">
-                <button
-                  type="button"
-                  onClick={() => setDirection('LONG')}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition ${
-                    direction === 'LONG'
-                      ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/30'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  <TrendingUp className="w-3.5 h-3.5" />
-                  LONG
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDirection('SHORT')}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 transition ${
-                    direction === 'SHORT'
-                      ? 'bg-rose-600 text-white shadow-sm shadow-rose-500/30'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  <TrendingDown className="w-3.5 h-3.5" />
-                  SHORT
-                </button>
+    <div className="trade-modal-overlay fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-4">
+      <div className="trade-modal-sheet w-full sm:max-w-2xl bg-[#0D111A] text-white rounded-t-[28px] sm:rounded-[24px] border border-[#20283A] shadow-2xl flex flex-col max-h-[calc(100dvh-var(--app-safe-top)-var(--app-safe-bottom)-12px)] overflow-hidden">
+        <header className="shrink-0 px-5 pt-4 pb-3 border-b border-[#1D2433] bg-[#0D111A]/95">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-[10px] font-mono tracking-[0.18em] text-emerald-400 uppercase">
+                Weltrade SyntX • {editingTrade ? 'Edit Trade' : 'Quick Add'}
               </div>
-
-              {/* Status Selector */}
-              <div className="bg-[#141824] p-1 rounded-xl flex border border-[#1F2638]">
-                <button
-                  type="button"
-                  onClick={() => setStatus('WIN')}
-                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition ${
-                    status === 'WIN' ? 'bg-emerald-950 text-emerald-400 border border-emerald-700' : 'text-gray-400'
-                  }`}
-                >
-                  WIN
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatus('LOSS')}
-                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition ${
-                    status === 'LOSS' ? 'bg-rose-950 text-rose-400 border border-rose-700' : 'text-gray-400'
-                  }`}
-                >
-                  LOSS
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatus('BREAK_EVEN')}
-                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition ${
-                    status === 'BREAK_EVEN' ? 'bg-slate-800 text-gray-200' : 'text-gray-400'
-                  }`}
-                >
-                  BE
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatus('OPEN')}
-                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition ${
-                    status === 'OPEN' ? 'bg-blue-900/60 text-blue-300' : 'text-gray-400'
-                  }`}
-                >
-                  OPEN
-                </button>
-              </div>
-            </div>
-
-            {/* Quick Instrument Selector */}
-            <div>
-              <label className="text-[11px] font-medium text-gray-400 mb-1 block">
-                Instrument / Pair
-              </label>
-              <div className="flex gap-1.5 overflow-x-auto pb-1.5 scrollbar-none">
-                {COMMON_INSTRUMENTS.map((inst) => (
-                  <button
-                    key={inst}
-                    type="button"
-                    onClick={() => setInstrument(inst)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-semibold whitespace-nowrap border transition ${
-                      instrument === inst
-                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                        : 'bg-[#141824] border-[#1F2638] text-gray-300 hover:border-gray-600'
-                    }`}
-                  >
-                    {inst}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="text"
-                value={instrument}
-                onChange={(e) => setInstrument(e.target.value.toUpperCase())}
-                placeholder="Or type custom symbol (e.g. SOLUSDT, NVDA)"
-                className="mt-1 w-full bg-[#141824] border border-[#1F2638] rounded-xl px-3 py-2 text-sm font-mono text-white focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            {/* Strategy & Setup Pickers */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] font-medium text-gray-400 mb-1 block">Strategy</label>
-                <select
-                  value={strategy}
-                  onChange={(e) => setStrategy(e.target.value)}
-                  className="w-full bg-[#141824] border border-[#1F2638] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                >
-                  {strategies.map(s => (
-                    <option key={s.id} value={s.name}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-medium text-gray-400 mb-1 block">Setup Model</label>
-                <select
-                  value={setup}
-                  onChange={(e) => setSetup(e.target.value)}
-                  className="w-full bg-[#141824] border border-[#1F2638] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                >
-                  {(currentStrategyObj?.setups || ['Default Setup']).map(st => (
-                    <option key={st} value={st}>{st}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Session & Timeframe */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] font-medium text-gray-400 mb-1 block">Trading Session</label>
-                <select
-                  value={session}
-                  onChange={(e) => setSession(e.target.value as TradingSession)}
-                  className="w-full bg-[#141824] border border-[#1F2638] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                >
-                  {SESSIONS.map(s => (
-                    <option key={s.id} value={s.id}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-medium text-gray-400 mb-1 block">Timeframe</label>
-                <div className="flex gap-1 overflow-x-auto">
-                  {TIMEFRAMES.map(tf => (
-                    <button
-                      key={tf}
-                      type="button"
-                      onClick={() => setTimeframe(tf)}
-                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-mono font-bold border transition ${
-                        timeframe === tf
-                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                          : 'bg-[#141824] border-[#1F2638] text-gray-400'
-                      }`}
-                    >
-                      {tf}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Entry Date & Time */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] font-medium text-gray-400 mb-1 block">Date</label>
-                <input
-                  type="date"
-                  value={entryDate}
-                  onChange={(e) => setEntryDate(e.target.value)}
-                  className="w-full bg-[#141824] border border-[#1F2638] rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-medium text-gray-400 mb-1 block">Time</label>
-                <input
-                  type="time"
-                  value={entryTime}
-                  onChange={(e) => setEntryTime(e.target.value)}
-                  className="w-full bg-[#141824] border border-[#1F2638] rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
-
-            {/* Price Inputs: Entry, Stop Loss, Take Profit, Exit */}
-            <div className="bg-[#141824] p-3 rounded-2xl border border-[#1E2538] space-y-3">
-              <div className="flex items-center justify-between text-xs font-semibold text-gray-300 border-b border-[#1F2638] pb-1.5">
-                <span className="flex items-center gap-1.5">
-                  <Calculator className="w-3.5 h-3.5 text-emerald-400" />
-                  Prices & Executions
+              <div className="mt-1 flex items-center gap-2 flex-wrap">
+                <h2 className="text-xl font-bold tracking-tight truncate">{instrument}</h2>
+                <span className={`px-2 py-1 rounded-lg text-[10px] font-bold ${
+                  direction === 'LONG'
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                }`}>
+                  {direction}
                 </span>
-                <span className="text-[10px] text-gray-400 font-mono">
-                  Planned R:R: <strong className="text-emerald-400 font-mono">1:{plannedRR}</strong>
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="text-[10px] text-gray-400 block mb-0.5">Entry Price *</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={entryPrice}
-                    onChange={(e) => setEntryPrice(e.target.value)}
-                    placeholder="e.g. 1.0825"
-                    className="w-full bg-[#0D1018] border border-[#1E2538] rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:border-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-rose-400 block mb-0.5">Stop Loss *</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={stopLossPrice}
-                    onChange={(e) => setStopLossPrice(e.target.value)}
-                    placeholder="e.g. 1.0815"
-                    className="w-full bg-[#0D1018] border border-rose-950 focus:border-rose-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-rose-200"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-emerald-400 block mb-0.5">Take Profit</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={takeProfitPrice}
-                    onChange={(e) => setTakeProfitPrice(e.target.value)}
-                    placeholder="e.g. 1.0855"
-                    className="w-full bg-[#0D1018] border border-emerald-950 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-emerald-200"
-                  />
-                </div>
-              </div>
-
-              {/* Exit Price (if closed) */}
-              {status !== 'OPEN' && (
-                <div>
-                  <div className="flex items-center justify-between mb-0.5">
-                    <label className="text-[10px] text-gray-300">Actual Exit Price (optional)</label>
-                    <span className="text-[9px] text-gray-500">Defaults to TP or SL</span>
-                  </div>
-                  <input
-                    type="number"
-                    step="any"
-                    value={exitPrice}
-                    onChange={(e) => setExitPrice(e.target.value)}
-                    placeholder={status === 'WIN' ? `Defaults to TP: ${takeProfitPrice || 'Auto'}` : `Defaults to SL: ${stopLossPrice || 'Auto'}`}
-                    className="w-full bg-[#0D1018] border border-[#1E2538] rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:border-emerald-500"
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Risk & Position Sizing with Automated Outputs */}
-            <div className="bg-[#141824] p-3 rounded-2xl border border-[#1E2538] space-y-3">
-              <div className="flex items-center justify-between text-xs font-semibold text-gray-300 border-b border-[#1F2638] pb-1.5">
-                <span>Risk Management</span>
-                {isOverRisk && (
-                  <span className="flex items-center gap-1 text-[10px] text-amber-400 bg-amber-950/50 px-2 py-0.5 rounded border border-amber-800">
-                    <AlertTriangle className="w-3 h-3" />
-                    Exceeds max limit ({settings.maxRiskPerTrade}%)
+                {selectedSpec && (
+                  <span className="px-2 py-1 rounded-lg bg-[#151B28] text-gray-400 border border-[#232C40] text-[10px]">
+                    {selectedSpec.group}
                   </span>
                 )}
               </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="shrink-0 w-9 h-9 rounded-xl bg-[#151B28] border border-[#232C40] text-gray-400 hover:text-white flex items-center justify-center"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </header>
 
-              <div className="grid grid-cols-3 gap-2">
+        {formError && (
+          <div className="mx-4 mt-3 px-3 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>{formError}</span>
+          </div>
+        )}
+
+        <div className="shrink-0 flex border-b border-[#1D2433] bg-[#090D14] overflow-x-auto">
+          {[
+            ['DETAILS', 'Trade'],
+            ['CHECKLIST', 'Checklist'],
+            ['CHARTS', 'Charts'],
+          ].map(([id, label], index) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id as typeof activeTab)}
+              className={`px-5 py-3 text-xs font-semibold border-b-2 whitespace-nowrap ${
+                activeTab === id
+                  ? 'border-emerald-500 text-emerald-400'
+                  : 'border-transparent text-gray-500'
+              }`}
+            >
+              {index + 1}. {label}
+              {id === 'CHECKLIST' && (
+                <span className="ml-1.5 text-[10px] bg-[#151B28] px-1.5 py-0.5 rounded-full">
+                  {checklist.filter(item => item.checked).length}/{checklist.length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'DETAILS' && (
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 overscroll-contain">
+            <section className="rounded-2xl border border-[#20283A] bg-[#111621] p-3.5">
+              <div className="flex items-center justify-between gap-3 mb-3">
                 <div>
-                  <label className="text-[10px] text-gray-400 block mb-0.5">Risk %</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={riskPercentage}
-                    onChange={(e) => setRiskPercentage(parseFloat(e.target.value) || 0)}
-                    className={`w-full bg-[#0D1018] border rounded-lg px-2.5 py-1.5 text-xs font-mono text-white ${
-                      isOverRisk ? 'border-amber-500 text-amber-300' : 'border-[#1E2538]'
-                    }`}
-                  />
+                  <div className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider">
+                    Instrument
+                  </div>
+                  <div className="text-[10px] text-gray-500 mt-0.5">
+                    Weltrade SyntX registry
+                  </div>
                 </div>
-                <div>
-                  <label className="text-[10px] text-gray-400 block mb-0.5">Dollar Risk ($)</label>
-                  <input
-                    type="text"
-                    readOnly
-                    value={`$${dollarRisk}`}
-                    className="w-full bg-[#090C12] border border-[#1B2130] rounded-lg px-2.5 py-1.5 text-xs font-mono text-gray-300"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-gray-400 block mb-0.5">Size / Lots</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={positionSize}
-                    onChange={(e) => setPositionSize(e.target.value)}
-                    placeholder="1.0"
-                    className="w-full bg-[#0D1018] border border-[#1E2538] rounded-lg px-2.5 py-1.5 text-xs font-mono text-white"
-                  />
-                </div>
+                <Activity className="w-4 h-4 text-emerald-400" />
               </div>
 
-              {/* Automatic Calculated Results Bar */}
-              {status !== 'OPEN' && (
-                <div className="bg-[#0A0D15] p-2.5 rounded-xl border border-[#1E2535] grid grid-cols-3 text-center">
-                  <div>
-                    <span className="text-[9px] text-gray-400 block">P&L</span>
-                    <span className={`text-sm font-bold font-mono ${outcome.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {formatCurrency(outcome.pnl, settings.currency)}
-                    </span>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                <input
+                  value={instrumentSearch}
+                  onChange={e => setInstrumentSearch(e.target.value)}
+                  placeholder="Search SyntX instrument..."
+                  className="w-full h-10 pl-9 pr-3 rounded-xl bg-[#090D14] border border-[#242D40] text-sm text-white placeholder:text-gray-600 outline-none focus:border-emerald-500/60"
+                />
+              </div>
+
+              <div className="mt-2.5 flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                <button
+                  onClick={() => setSelectedGroup('All')}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold whitespace-nowrap border ${
+                    selectedGroup === 'All'
+                      ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+                      : 'bg-[#151B28] border-[#232C40] text-gray-500'
+                  }`}
+                >
+                  All
+                </button>
+                {GROUP_ORDER.filter(group =>
+                  SYNTX_SYMBOLS.some(item => item.group === group)
+                ).map(group => (
+                  <button
+                    key={group}
+                    onClick={() => setSelectedGroup(group)}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold whitespace-nowrap border ${
+                      selectedGroup === group
+                        ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+                        : 'bg-[#151B28] border-[#232C40] text-gray-500'
+                    }`}
+                  >
+                    {group}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-44 overflow-y-auto pr-0.5">
+                {filteredSymbols.map(spec => (
+                  <button
+                    key={spec.symbol}
+                    onClick={() => setInstrument(spec.symbol)}
+                    className={`min-h-10 px-2.5 rounded-xl border text-left transition ${
+                      instrument === spec.symbol
+                        ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-300'
+                        : 'border-[#232C40] bg-[#151B28] text-gray-300 hover:border-[#34405A]'
+                    }`}
+                  >
+                    <span className="block text-[11px] font-semibold truncate">{spec.symbol}</span>
+                    <span className="block text-[9px] text-gray-500 truncate">{spec.group}</span>
+                  </button>
+                ))}
+              </div>
+
+              {selectedSpec && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-[#090D14] border border-[#20283A] p-2.5">
+                    <div className="text-[9px] uppercase tracking-wider text-gray-600">Direction</div>
+                    <div className="text-xs font-semibold text-gray-300 mt-1">
+                      {selectedSpec.directionHint}
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[9px] text-gray-400 block">Realized R</span>
-                    <span className={`text-sm font-bold font-mono ${outcome.realizedR >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {formatR(outcome.realizedR)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[9px] text-gray-400 block">Gain / Loss</span>
-                    <span className={`text-sm font-bold font-mono ${outcome.pnlPercentage >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {outcome.pnlPercentage > 0 ? `+${outcome.pnlPercentage}%` : `${outcome.pnlPercentage}%`}
-                    </span>
+                  <div className="rounded-xl bg-[#090D14] border border-[#20283A] p-2.5">
+                    <div className="text-[9px] uppercase tracking-wider text-gray-600">Max volume</div>
+                    <div className="text-xs font-semibold text-gray-300 mt-1">
+                      {selectedSpec.maxVolumeLots ?? 'Broker-defined'}
+                    </div>
                   </div>
                 </div>
               )}
-            </div>
+            </section>
 
-            {/* Mistakes Tracker Tagging */}
-            <div>
-              <label className="text-[11px] font-medium text-gray-400 mb-1.5 block">
-                Tag Mistakes (Self-Discipline Audit)
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {AVAILABLE_MISTAKES.map(tag => {
-                  const isSelected = selectedMistakes.includes(tag);
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => toggleMistake(tag)}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-medium transition ${
-                        isSelected
-                          ? 'bg-rose-950/80 text-rose-300 border border-rose-700/80'
-                          : 'bg-[#141824] text-gray-400 border border-[#1E2538] hover:text-gray-200'
-                      }`}
-                    >
-                      {tag}
-                    </button>
-                  );
-                })}
+            <section className="grid grid-cols-2 gap-2.5">
+              <div className="rounded-2xl bg-[#111621] border border-[#20283A] p-1.5 flex">
+                <button
+                  onClick={() => setDirection('LONG')}
+                  className={`flex-1 rounded-xl py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 ${
+                    direction === 'LONG'
+                      ? 'bg-emerald-500 text-[#06110C]'
+                      : 'text-gray-500'
+                  }`}
+                >
+                  <TrendingUp className="w-4 h-4" /> LONG
+                </button>
+                <button
+                  onClick={() => setDirection('SHORT')}
+                  className={`flex-1 rounded-xl py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 ${
+                    direction === 'SHORT'
+                      ? 'bg-rose-500 text-white'
+                      : 'text-gray-500'
+                  }`}
+                >
+                  <TrendingDown className="w-4 h-4" /> SHORT
+                </button>
               </div>
-            </div>
 
-            {/* Trade Notes */}
-            <div>
-              <label className="text-[11px] font-medium text-gray-400 mb-1 block">Trade Notes</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Key price action observations, liquidity targets, market sentiment..."
-                rows={2}
-                className="w-full bg-[#141824] border border-[#1F2638] rounded-xl p-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Tab 2: Pre-Trade Checklist */}
-        {activeTab === 'CHECKLIST' && (
-          <div className="p-4 space-y-3 overflow-y-auto flex-1">
-            <div className="bg-[#141824] p-3 rounded-2xl border border-[#1E2538]">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
-                  <CheckSquare className="w-4 h-4" />
-                  Pre-Execution Protocol Checklist
-                </span>
-                <span className="text-xs font-mono text-gray-400">
-                  {checklist.filter(c => c.checked).length} of {checklist.length} verified
-                </span>
-              </div>
-              <p className="text-[11px] text-gray-400 mb-3">
-                Strict adherence directly calculates your 0–100 Discipline Score. Check items confirmed before pulling the trigger.
-              </p>
-
-              <div className="space-y-2">
-                {checklist.map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => toggleChecklistItem(item.id)}
-                    className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer select-none transition ${
-                      item.checked
-                        ? 'bg-emerald-950/30 border-emerald-800/60 text-emerald-200'
-                        : 'bg-[#0E121B] border-[#1C2233] text-gray-400 hover:border-gray-600'
+              <div className="rounded-2xl bg-[#111621] border border-[#20283A] p-1.5 flex">
+                {(['OPEN', 'WIN', 'LOSS', 'BREAK_EVEN'] as TradeStatus[]).map(value => (
+                  <button
+                    key={value}
+                    onClick={() => setStatus(value)}
+                    className={`flex-1 rounded-xl py-2.5 text-[10px] font-bold ${
+                      status === value
+                        ? 'bg-[#202A3B] text-emerald-400'
+                        : 'text-gray-500'
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={item.checked}
-                      onChange={() => {}}
-                      className="mt-0.5 rounded text-emerald-500 focus:ring-0 focus:ring-offset-0 bg-[#161C2A] border-[#293248]"
-                    />
-                    <span className="text-xs flex-1">{item.label}</span>
-                  </div>
+                    {value === 'BREAK_EVEN' ? 'BE' : value}
+                  </button>
                 ))}
               </div>
-            </div>
+            </section>
+
+            <section className="rounded-2xl border border-[#20283A] bg-[#111621] p-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-[11px] text-gray-500">
+                  Strategy
+                  <select
+                    value={strategy}
+                    onChange={e => setStrategy(e.target.value)}
+                    className="mt-1.5 w-full h-10 rounded-xl bg-[#090D14] border border-[#242D40] px-3 text-sm text-gray-200 outline-none"
+                  >
+                    {strategies.map(item => (
+                      <option key={item.id} value={item.name}>{item.name}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-[11px] text-gray-500">
+                  Setup
+                  <select
+                    value={setup}
+                    onChange={e => setSetup(e.target.value)}
+                    className="mt-1.5 w-full h-10 rounded-xl bg-[#090D14] border border-[#242D40] px-3 text-sm text-gray-200 outline-none"
+                  >
+                    {(strategies.find(item => item.name === strategy)?.setups || [setup]).map(item => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-3">
+                <div className="text-[11px] text-gray-500 mb-1.5">Timeframe</div>
+                <div className="flex gap-1.5 overflow-x-auto scrollbar-none">
+                  {TIMEFRAMES.map(value => (
+                    <button
+                      key={value}
+                      onClick={() => setTimeframe(value)}
+                      className={`px-3 py-2 rounded-lg text-[10px] font-semibold border whitespace-nowrap ${
+                        timeframe === value
+                          ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+                          : 'bg-[#151B28] border-[#232C40] text-gray-500'
+                      }`}
+                    >
+                      {value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-[#20283A] bg-[#111621] p-3.5">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="text-xs font-semibold text-gray-200">Prices & Execution</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5">
+                    Enter the exact price shown by your Weltrade platform.
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono text-emerald-400">
+                  R:R {plannedRR.toFixed(2)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2.5">
+                <label className="text-[10px] text-gray-500">
+                  Entry
+                  <input
+                    inputMode="decimal"
+                    value={entryPrice}
+                    onChange={e => setEntryPrice(e.target.value)}
+                    placeholder="0.0000"
+                    className="mt-1 w-full h-11 rounded-xl bg-[#090D14] border border-[#242D40] px-3 text-sm font-mono text-white outline-none focus:border-emerald-500/60"
+                  />
+                </label>
+                <label className="text-[10px] text-gray-500">
+                  Stop Loss
+                  <input
+                    inputMode="decimal"
+                    value={stopLossPrice}
+                    onChange={e => setStopLossPrice(e.target.value)}
+                    placeholder="0.0000"
+                    className="mt-1 w-full h-11 rounded-xl bg-[#090D14] border border-rose-500/20 px-3 text-sm font-mono text-white outline-none focus:border-rose-500/60"
+                  />
+                </label>
+                <label className="text-[10px] text-gray-500">
+                  Take Profit
+                  <input
+                    inputMode="decimal"
+                    value={takeProfitPrice}
+                    onChange={e => setTakeProfitPrice(e.target.value)}
+                    placeholder="0.0000"
+                    className="mt-1 w-full h-11 rounded-xl bg-[#090D14] border border-emerald-500/20 px-3 text-sm font-mono text-white outline-none focus:border-emerald-500/60"
+                  />
+                </label>
+              </div>
+
+              <label className="block mt-3 text-[10px] text-gray-500">
+                Actual Exit Price
+                <input
+                  inputMode="decimal"
+                  value={exitPrice}
+                  onChange={e => setExitPrice(e.target.value)}
+                  placeholder={status === 'OPEN' ? 'Leave blank while trade is open' : 'Defaults to TP / SL'}
+                  className="mt-1 w-full h-10 rounded-xl bg-[#090D14] border border-[#242D40] px-3 text-sm font-mono text-white outline-none"
+                />
+              </label>
+            </section>
+
+            <section className="rounded-2xl border border-[#20283A] bg-[#111621] p-3.5">
+              <div className="text-xs font-semibold text-gray-200 mb-3">Risk Management</div>
+              <div className="grid grid-cols-3 gap-2.5">
+                <label className="text-[10px] text-gray-500">
+                  Risk %
+                  <input
+                    inputMode="decimal"
+                    value={riskPercentage}
+                    onChange={e => setRiskPercentage(Number(e.target.value) || 0)}
+                    className="mt-1 w-full h-10 rounded-xl bg-[#090D14] border border-[#242D40] px-3 text-sm font-mono text-white"
+                  />
+                </label>
+                <div className="rounded-xl bg-[#090D14] border border-[#20283A] px-3 py-2.5">
+                  <div className="text-[9px] text-gray-600">Dollar Risk</div>
+                  <div className="text-sm font-mono text-gray-200 mt-1">
+                    {formatCurrency(dollarRisk, settings.currency)}
+                  </div>
+                </div>
+                <label className="text-[10px] text-gray-500">
+                  Size / Lots
+                  <input
+                    inputMode="decimal"
+                    value={positionSize}
+                    onChange={e => setPositionSize(e.target.value)}
+                    className="mt-1 w-full h-10 rounded-xl bg-[#090D14] border border-[#242D40] px-3 text-sm font-mono text-white"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 rounded-xl bg-[#090D14] border border-[#20283A] divide-x divide-[#20283A]">
+                <div className="p-2.5 text-center">
+                  <div className="text-[9px] text-gray-600">P&L</div>
+                  <div className={`text-sm font-mono font-bold mt-1 ${outcome.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {formatCurrency(outcome.pnl, settings.currency)}
+                  </div>
+                </div>
+                <div className="p-2.5 text-center">
+                  <div className="text-[9px] text-gray-600">Realized R</div>
+                  <div className="text-sm font-mono font-bold text-gray-200 mt-1">{formatR(outcome.realizedR)}</div>
+                </div>
+                <div className="p-2.5 text-center">
+                  <div className="text-[9px] text-gray-600">Risk</div>
+                  <div className="text-sm font-mono font-bold text-gray-200 mt-1">{riskPercentage.toFixed(2)}%</div>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-[#20283A] bg-[#111621] p-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-[10px] text-gray-500">
+                  Date
+                  <input
+                    type="date"
+                    value={entryDate}
+                    onChange={e => setEntryDate(e.target.value)}
+                    className="mt-1 w-full h-10 rounded-xl bg-[#090D14] border border-[#242D40] px-3 text-sm text-gray-200"
+                  />
+                </label>
+                <label className="text-[10px] text-gray-500">
+                  Time
+                  <input
+                    type="time"
+                    value={entryTime}
+                    onChange={e => setEntryTime(e.target.value)}
+                    className="mt-1 w-full h-10 rounded-xl bg-[#090D14] border border-[#242D40] px-3 text-sm text-gray-200"
+                  />
+                </label>
+              </div>
+              <p className="mt-2 text-[9px] text-gray-600">
+                Session tracking is intentionally disabled for Weltrade SyntX.
+              </p>
+            </section>
+
+            <section>
+              <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-2">Self-discipline audit</div>
+              <div className="flex flex-wrap gap-1.5">
+                {MISTAKES.map(tag => (
+                  <button
+                    key={tag}
+                    onClick={() => toggleMistake(tag)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] border ${
+                      selectedMistakes.includes(tag)
+                        ? 'bg-rose-500/10 border-rose-500/40 text-rose-300'
+                        : 'bg-[#111621] border-[#20283A] text-gray-500'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Trade notes..."
+              className="w-full min-h-20 rounded-2xl bg-[#111621] border border-[#20283A] p-3 text-sm text-gray-200 placeholder:text-gray-600 outline-none resize-none"
+            />
           </div>
         )}
 
-        {/* Tab 3: Screenshot Attachments */}
-        {activeTab === 'SCREENSHOTS' && (
-          <div className="p-4 space-y-4 overflow-y-auto flex-1">
-            <div className="text-xs text-gray-400">
-              Attach TradingView or broker charts for post-trade retrospective and future AI pattern analysis.
-            </div>
+        {activeTab === 'CHECKLIST' && (
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-2">
+            {checklist.length === 0 ? (
+              <div className="rounded-2xl border border-[#20283A] bg-[#111621] p-5 text-sm text-gray-500">
+                No checklist items configured.
+              </div>
+            ) : (
+              checklist.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => toggleChecklist(item.id)}
+                  className={`w-full text-left flex items-center gap-3 p-3.5 rounded-2xl border ${
+                    item.checked
+                      ? 'border-emerald-500/30 bg-emerald-500/5'
+                      : 'border-[#20283A] bg-[#111621]'
+                  }`}
+                >
+                  <span className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${
+                    item.checked
+                      ? 'bg-emerald-500 border-emerald-500 text-[#06110C]'
+                      : 'border-[#39445A] text-transparent'
+                  }`}>
+                    <Check className="w-3.5 h-3.5" />
+                  </span>
+                  <span className={`text-sm ${item.checked ? 'text-gray-200' : 'text-gray-400'}`}>
+                    {item.label}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {activeTab === 'CHARTS' && (
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+            <div className="grid grid-cols-3 gap-2.5">
               {(['BEFORE', 'ENTRY', 'AFTER'] as const).map(type => {
-                const existing = screenshots.find(s => s.type === type);
+                const shot = screenshots.find(item => item.type === type);
                 return (
-                  <div
-                    key={type}
-                    className="bg-[#141824] rounded-xl border border-[#1E2538] p-3 flex flex-col items-center justify-center text-center min-h-[140px] relative overflow-hidden"
-                  >
-                    {existing ? (
-                      <div className="w-full h-full relative group">
-                        <img
-                          src={existing.url}
-                          alt={type}
-                          className="w-full h-24 object-cover rounded-lg"
-                        />
+                  <div key={type} className="rounded-2xl border border-[#20283A] bg-[#111621] p-2">
+                    <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-2">{type}</div>
+                    {shot ? (
+                      <div className="relative">
+                        <img src={shot.url} alt={`${type} chart`} className="w-full aspect-square object-cover rounded-xl" />
                         <button
-                          type="button"
-                          onClick={() => removeScreenshot(existing.id)}
-                          className="absolute top-1 right-1 bg-red-600/90 text-white p-1 rounded-full hover:bg-red-700 transition"
+                          onClick={() => setScreenshots(current => current.filter(item => item.id !== shot.id))}
+                          className="absolute top-1 right-1 w-7 h-7 rounded-lg bg-black/70 text-white flex items-center justify-center"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                        <span className="text-[10px] text-emerald-400 font-mono mt-1 block">
-                          {type} CHART
-                        </span>
                       </div>
                     ) : (
-                      <label className="cursor-pointer flex flex-col items-center justify-center w-full h-full p-2">
-                        <div className="w-10 h-10 rounded-full bg-[#1B2234] flex items-center justify-center text-gray-400 mb-2">
-                          <Camera className="w-5 h-5 text-emerald-400" />
-                        </div>
-                        <span className="text-xs font-semibold text-gray-200">
-                          {type === 'BEFORE' ? 'Before Setup' : type === 'ENTRY' ? 'Entry Trigger' : 'After Result'}
-                        </span>
-                        <span className="text-[10px] text-gray-500 mt-0.5">Upload image</span>
+                      <label className="aspect-square rounded-xl border border-dashed border-[#354057] flex flex-col items-center justify-center text-gray-600 cursor-pointer">
+                        <Camera className="w-5 h-5 mb-1" />
+                        <span className="text-[9px]">Add chart</span>
                         <input
                           type="file"
                           accept="image/*"
                           className="hidden"
-                          onChange={(e) => handleFileUpload(e, type)}
+                          onChange={e => handleScreenshot(e, type)}
                         />
                       </label>
                     )}
@@ -785,80 +744,37 @@ export const TradeModal: React.FC<TradeModalProps> = ({
                 );
               })}
             </div>
+            <div className="mt-4 rounded-2xl border border-[#20283A] bg-[#111621] p-4 text-xs text-gray-500">
+              Keep your SyntX chart screenshots attached to the execution so the journal remains auditable.
+            </div>
           </div>
         )}
 
-        {/* Footer Actions */}
-        <div className="p-4 border-t border-[#1C2233] bg-[#0A0D14] flex items-center justify-between gap-3">
-          <div className="text-[11px] font-mono text-gray-400">
-            {editingTrade && onDeleteTrade ? (
-              showDeleteConfirm ? (
-                <div className="flex items-center gap-2 bg-rose-950/70 border border-rose-700/60 p-1 px-2 rounded-xl">
-                  <span className="text-[10px] text-rose-200 font-semibold">Delete trade?</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      Haptics.light();
-                      setShowDeleteConfirm(false);
-                    }}
-                    className="px-2 py-0.5 bg-[#151926] text-gray-300 rounded text-[10px] font-medium"
-                  >
-                    No
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      Haptics.warning();
-                      onDeleteTrade(editingTrade.id);
-                      onClose();
-                    }}
-                    className="px-2 py-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded text-[10px] font-bold"
-                  >
-                    Yes, Delete
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    Haptics.light();
-                    setShowDeleteConfirm(true);
-                  }}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-400 hover:text-white bg-rose-950/30 hover:bg-rose-900/50 border border-rose-800/40 transition flex items-center gap-1.5 active:scale-95"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete Trade</span>
-                </button>
-              )
-            ) : activeTab !== 'DETAILS' ? (
+        <footer className="trade-modal-footer shrink-0 border-t border-[#1D2433] bg-[#0B0F17] px-4 pt-3 pb-safe">
+          <div className="flex items-center gap-2 max-w-2xl mx-auto">
+            {editingTrade && onDeleteTrade && (
               <button
-                type="button"
-                onClick={() => setActiveTab('DETAILS')}
-                className="text-emerald-400 hover:underline"
+                onClick={() => onDeleteTrade(editingTrade.id)}
+                className="w-11 h-11 rounded-xl border border-rose-500/20 text-rose-400 flex items-center justify-center"
+                aria-label="Delete trade"
               >
-                ← Back to Details
+                <Trash2 className="w-4 h-4" />
               </button>
-            ) : null}
-          </div>
-
-          <div className="flex items-center gap-2">
+            )}
             <button
-              type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white bg-[#151926] transition active:scale-95"
+              className="flex-1 h-11 rounded-xl bg-[#171D29] border border-[#252E41] text-gray-400 font-semibold text-sm"
             >
               Cancel
             </button>
             <button
-              type="button"
               onClick={handleSave}
-              className="px-5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 shadow-lg shadow-emerald-500/20 active:scale-95 transition"
+              className="flex-[1.5] h-11 rounded-xl bg-emerald-500 text-[#06110C] font-bold text-sm shadow-lg shadow-emerald-500/15"
             >
               {editingTrade ? 'Update Trade' : 'Save Trade'}
             </button>
           </div>
-        </div>
-
+        </footer>
       </div>
     </div>
   );
