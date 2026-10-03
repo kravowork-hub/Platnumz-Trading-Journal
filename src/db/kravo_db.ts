@@ -10,6 +10,11 @@ import {
 const DB_NAME = 'kravo_trading_room_db';
 const DB_VERSION = 1;
 
+const csvCell = (value: unknown): string => {
+  const text = value == null ? '' : String(value);
+  return /[\",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
 export const DEFAULT_CHECKLIST: ChecklistItem[] = [
   { id: 'chk_1', label: 'Higher timeframe bias confirmed (Daily / 4H)', checked: false, order: 1 },
   { id: 'chk_2', label: 'Market structure shift (MSS / BOS) confirmed', checked: false, order: 2 },
@@ -837,28 +842,11 @@ class KravoRoomDB {
     ];
 
     const rows = trades.map(t => [
-      t.tradeNumber,
-      t.entryDate,
-      t.entryTime || '',
-      t.instrument,
-      t.direction,
-      t.status,
-      t.timeframe,
-      t.session,
-      `"${t.strategy}"`,
-      `"${t.setup}"`,
-      t.entryPrice,
-      t.stopLossPrice,
-      t.takeProfitPrice,
-      t.exitPrice || '',
-      t.riskPercentage,
-      t.dollarRisk,
-      t.positionSize,
-      t.realizedR !== undefined ? t.realizedR : '',
-      t.pnl !== undefined ? t.pnl : '',
-      `"${(t.mistakes || []).join('; ')}"`,
-      `"${(t.notes || '').replace(/"/g, '""')}"`
-    ]);
+      t.tradeNumber, t.entryDate, t.entryTime || '', t.instrument, t.direction, t.status,
+      t.timeframe, t.session, t.strategy, t.setup, t.entryPrice, t.stopLossPrice,
+      t.takeProfitPrice, t.exitPrice ?? '', t.riskPercentage, t.dollarRisk, t.positionSize,
+      t.realizedR ?? '', t.pnl ?? '', (t.mistakes || []).join('; '), t.notes || ''
+    ].map(csvCell));
 
     return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
   }
@@ -874,7 +862,7 @@ class KravoRoomDB {
 
     const backup = {
       app: 'Kravo Trading Journal Room Database',
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       data: {
         trades,
@@ -894,23 +882,19 @@ class KravoRoomDB {
       const parsed = JSON.parse(jsonString);
       if (!parsed.data) throw new Error('Invalid backup file');
 
+      // Restore is a replacement operation, not an additive merge.
+      // This prevents deleted/old trades from surviving a restore.
+      await this.resetAllStats();
       if (Array.isArray(parsed.data.trades)) {
-        for (const t of parsed.data.trades) {
-          await this.saveTrade(t);
-        }
+        for (const t of parsed.data.trades) await this.saveTrade(t);
       }
-      if (Array.isArray(parsed.data.strategies)) {
-        await this.saveStrategies(parsed.data.strategies);
+      if (Array.isArray(parsed.data.strategies)) await this.saveStrategies(parsed.data.strategies);
+      if (Array.isArray(parsed.data.checklistTemplate)) await this.saveChecklistTemplate(parsed.data.checklistTemplate);
+      if (Array.isArray(parsed.data.goals)) await this.saveGoals(parsed.data.goals);
+      if (Array.isArray(parsed.data.dailyReviews)) {
+        for (const review of parsed.data.dailyReviews) await this.saveDailyReview(review);
       }
-      if (Array.isArray(parsed.data.checklistTemplate)) {
-        await this.saveChecklistTemplate(parsed.data.checklistTemplate);
-      }
-      if (Array.isArray(parsed.data.goals)) {
-        await this.saveGoals(parsed.data.goals);
-      }
-      if (parsed.data.settings) {
-        await this.saveSettings(parsed.data.settings);
-      }
+      if (parsed.data.settings) await this.saveSettings(parsed.data.settings);
       return true;
     } catch (e) {
       console.error('Restore failed:', e);
