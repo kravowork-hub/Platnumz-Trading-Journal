@@ -28,7 +28,6 @@ import { ReviewsView } from './components/ReviewsView';
 import { SecurityLockModal } from './components/SecurityLockModal';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { ImageViewerModal } from './components/ImageViewerModal';
-import { AiChartLabModal } from './components/AiChartLabModal';
 import { ExportReportModal } from './components/ExportReportModal';
 import { ResetStatsModal } from './components/ResetStatsModal';
 import { AndroidToast, ToastMessage } from './components/AndroidToast';
@@ -57,7 +56,6 @@ export default function App() {
   const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
   const [riskCalcOpen, setRiskCalcOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
-  const [aiLabModalOpen, setAiLabModalOpen] = useState(false);
   const [resetModalOpen, setResetModalOpen] = useState(false);
 
   // Image Viewer
@@ -79,7 +77,6 @@ export default function App() {
     tradeModalOpen || 
     riskCalcOpen || 
     reportModalOpen || 
-    aiLabModalOpen ||
     resetModalOpen;
 
   const closeTopModal = useCallback(() => {
@@ -94,12 +91,10 @@ export default function App() {
       setRiskCalcOpen(false);
     } else if (reportModalOpen) {
       setReportModalOpen(false);
-    } else if (aiLabModalOpen) {
-      setAiLabModalOpen(false);
     } else if (resetModalOpen) {
       setResetModalOpen(false);
     }
-  }, [imageViewer.isOpen, selectedTradeId, tradeModalOpen, riskCalcOpen, reportModalOpen, aiLabModalOpen, resetModalOpen]);
+  }, [imageViewer.isOpen, selectedTradeId, tradeModalOpen, riskCalcOpen, reportModalOpen, resetModalOpen]);
 
   const canGoBackView = secondaryView !== 'NONE' || currentTab !== 'dashboard';
 
@@ -157,6 +152,13 @@ export default function App() {
     await kravoDB.saveTrade(trade);
     const updated = await kravoDB.getTrades();
     setTrades(updated);
+    // Keep displayed account equity synchronized with realized journal P&L.
+    if (settings.startingBalance > 0) {
+      const realized = updated.filter(t => t.status !== 'OPEN').reduce((sum, t) => sum + (t.pnl ?? 0), 0);
+      const nextSettings = { ...settings, currentBalance: Number((settings.startingBalance + realized).toFixed(2)) };
+      await kravoDB.saveSettings(nextSettings);
+      setSettings(nextSettings);
+    }
     setTradeModalOpen(false);
     setEditingTrade(null);
     Haptics.success();
@@ -167,6 +169,12 @@ export default function App() {
     await kravoDB.deleteTrade(tradeId);
     const updated = await kravoDB.getTrades();
     setTrades(updated);
+    if (settings.startingBalance > 0) {
+      const realized = updated.filter(t => t.status !== 'OPEN').reduce((sum, t) => sum + (t.pnl ?? 0), 0);
+      const nextSettings = { ...settings, currentBalance: Number((settings.startingBalance + realized).toFixed(2)) };
+      await kravoDB.saveSettings(nextSettings);
+      setSettings(nextSettings);
+    }
     if (selectedTradeId === tradeId) setSelectedTradeId(null);
     Haptics.warning();
     showToast('Trade removed from database', 'WARNING');
@@ -281,7 +289,7 @@ export default function App() {
             K
           </div>
         </div>
-        <span className="text-xs font-mono text-gray-400">Loading Room SQLite Cache...</span>
+        <span className="text-xs font-mono text-gray-400">Loading IndexedDB Cache...</span>
       </div>
     );
   }
@@ -400,7 +408,6 @@ export default function App() {
                 settings={settings}
                 onUpdateSettings={handleUpdateSettings}
                 onOpenReportModal={() => setReportModalOpen(true)}
-                onOpenAiLabModal={() => setAiLabModalOpen(true)}
                 onDataReset={loadDatabaseData}
                 onOpenResetModal={() => setResetModalOpen(true)}
                 onLoadDemoData={handleLoadDemoData}
@@ -482,14 +489,6 @@ export default function App() {
           onConfirmReset={handleResetAllStats}
           onLoadDemoData={handleLoadDemoData}
           tradeCount={trades.length}
-        />
-      )}
-
-      {/* Future AI Vision Lab Modal */}
-      {aiLabModalOpen && (
-        <AiChartLabModal
-          isOpen={aiLabModalOpen}
-          onClose={() => setAiLabModalOpen(false)}
         />
       )}
 
