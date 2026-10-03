@@ -483,3 +483,79 @@ export function generateEquityCurveData(trades: Trade[], startingBalance: number
 
   return points;
 }
+
+
+export interface DistributionBucket { label: string; count: number; positive: boolean }
+export interface AdvancedSegmentStats { key: string; count: number; wins: number; losses: number; winRate: number; netR: number; netPnl: number; profitFactor: number }
+export interface AdvancedPerformance {
+  expectancyR: number; expectancyDollar: number; payoffRatio: number; recoveryFactor: number;
+  returnOnStartingBalance: number; medianR: number; averageRiskPercent: number; maxRiskPercent: number;
+  maxDrawdownDollar: number; maxDrawdownPercentage: number; largestWin: number; largestLoss: number;
+  worstDayPnl: number; worstDayDate: string; bestDayPnl: number; bestDayDate: string;
+  currentStreak: { type: 'WIN'|'LOSS'|'NONE'; count: number }; bestWinStreak: number; worstLossStreak: number;
+  disciplineScore: number; reviewCompletion: number; rDistribution: DistributionBucket[];
+  sessionStats: AdvancedSegmentStats[]; setupStats: AdvancedSegmentStats[];
+  averageWinR: number; averageLossR: number;
+}
+
+const median = (values: number[]) => {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a,b)=>a-b);
+  const mid = Math.floor(sorted.length/2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid-1] + sorted[mid]) / 2;
+};
+
+const buildAdvancedSegment = (trades: Trade[], keyOf: (t: Trade)=>string): AdvancedSegmentStats[] => {
+  const map: Record<string, {count:number; wins:number; losses:number; netR:number; netPnl:number; winDollar:number; lossDollar:number}> = {};
+  for (const t of trades.filter(x=>x.status!=='OPEN')) {
+    const key = keyOf(t) || 'Unassigned';
+    const x = map[key] ||= {count:0,wins:0,losses:0,netR:0,netPnl:0,winDollar:0,lossDollar:0};
+    const pnl=t.pnl??0, r=t.realizedR??0; x.count++; x.netR+=r; x.netPnl+=pnl;
+    if (pnl>0 || t.status==='WIN') { x.wins++; x.winDollar += Math.max(0,pnl); }
+    else if (pnl<0 || t.status==='LOSS') { x.losses++; x.lossDollar += Math.abs(Math.min(0,pnl)); }
+  }
+  return Object.entries(map).map(([key,x])=>({
+    key,count:x.count,wins:x.wins,losses:x.losses,
+    winRate:Number(((x.wins/Math.max(1,x.wins+x.losses))*100).toFixed(1)),
+    netR:Number(x.netR.toFixed(2)),netPnl:Number(x.netPnl.toFixed(2)),
+    profitFactor:x.lossDollar===0?(x.winDollar>0?99.99:0):Number((x.winDollar/x.lossDollar).toFixed(2))
+  })).sort((a,b)=>b.netR-a.netR);
+};
+
+export function calculateAdvancedPerformance(trades: Trade[], settings?: AccountSettings): AdvancedPerformance {
+  const closed=[...trades.filter(t=>t.status!=='OPEN')].sort((a,b)=>`${a.entryDate}T${a.entryTime||'00:00'}`.localeCompare(`${b.entryDate}T${b.entryTime||'00:00'}`));
+  const rs=closed.map(t=>t.realizedR??0), pnls=closed.map(t=>t.pnl??0);
+  const wins=closed.filter(t=>(t.pnl??0)>0 || t.status==='WIN');
+  const losses=closed.filter(t=>(t.pnl??0)<0 || t.status==='LOSS');
+  const totalR=rs.reduce((a,b)=>a+b,0), totalPnl=pnls.reduce((a,b)=>a+b,0);
+  const avgWinR=wins.length?wins.reduce((a,t)=>a+(t.realizedR??0),0)/wins.length:0;
+  const avgLossR=losses.length?Math.abs(losses.reduce((a,t)=>a+(t.realizedR??0),0)/losses.length):0;
+  const winRate=wins.length/(Math.max(1,wins.length+losses.length));
+  const expectancyR=winRate*avgWinR-(1-winRate)*avgLossR;
+  const avgWinDollar=wins.length?wins.reduce((a,t)=>a+Math.max(0,t.pnl??0),0)/wins.length:0;
+  const avgLossDollar=losses.length?Math.abs(losses.reduce((a,t)=>a+Math.min(0,t.pnl??0),0)/losses.length):0;
+  const starting=settings?.startingBalance??0;
+  let peak=starting, balance=starting, maxDD=0, maxDDPct=0;
+  for(const pnl of pnls){ balance+=pnl; if(balance>peak) peak=balance; const dd=peak-balance; maxDD=Math.max(maxDD,dd); maxDDPct=Math.max(maxDDPct,peak>0?dd/peak*100:0); }
+  const dayMap:Record<string,number>={};
+  closed.forEach(t=>dayMap[t.entryDate]=(dayMap[t.entryDate]||0)+(t.pnl??0));
+  const days=Object.entries(dayMap);
+  const best=days.length?days.reduce((a,b)=>b[1]>a[1]?b:a):['',0];
+  const worst=days.length?days.reduce((a,b)=>b[1]<a[1]?b:a):['',0];
+  let currentType:'WIN'|'LOSS'|'NONE'='NONE', currentCount=0, bestWin=0, worstLoss=0, runWin=0, runLoss=0;
+  for(const t of closed){ const w=(t.pnl??0)>0||t.status==='WIN', l=(t.pnl??0)<0||t.status==='LOSS'; if(w){runWin++;runLoss=0;bestWin=Math.max(bestWin,runWin)} else if(l){runLoss++;runWin=0;worstLoss=Math.max(worstLoss,runLoss)} }
+  if(closed.length){ const t=closed[closed.length-1]; const w=(t.pnl??0)>0||t.status==='WIN', l=(t.pnl??0)<0||t.status==='LOSS'; currentType=w?'WIN':l?'LOSS':'NONE'; const run=[...closed].reverse(); for(const x of run){const same=w?((x.pnl??0)>0||x.status==='WIN'):l?((x.pnl??0)<0||x.status==='LOSS'):false;if(same)currentCount++;else break;} }
+  const buckets=[-3,-2,-1,0,1,2,3].map(n=>({label:n===-3?'<-3R':n===3?'>3R':`${n}R`,count:rs.filter(r=>n===-3?r<-3:n===3?r>3:Math.floor(r)===n).length,positive:n>=1}));
+  const reviews=closed.filter(t=>!!t.review).length;
+  const avgRisk=closed.length?closed.reduce((a,t)=>a+t.riskPercentage,0)/closed.length:0;
+  return {
+    expectancyR:Number(expectancyR.toFixed(2)), expectancyDollar:Number((expectancyR*(closed.length?closed.reduce((a,t)=>a+t.dollarRisk,0)/closed.length:0)).toFixed(2)),
+    payoffRatio:avgLossR?Number((avgWinR/avgLossR).toFixed(2)):0, recoveryFactor:maxDD?Number((totalPnl/maxDD).toFixed(2)):0,
+    returnOnStartingBalance:starting?Number((totalPnl/starting*100).toFixed(2)):0, medianR:Number(median(rs).toFixed(2)),
+    averageRiskPercent:Number(avgRisk.toFixed(2)), maxRiskPercent:closed.length?Math.max(...closed.map(t=>t.riskPercentage)):0,
+    maxDrawdownDollar:Number(maxDD.toFixed(2)),maxDrawdownPercentage:Number(maxDDPct.toFixed(2)),largestWin:wins.length?Math.max(...wins.map(t=>t.pnl??0)):0,largestLoss:losses.length?Math.min(...losses.map(t=>t.pnl??0)):0,
+    worstDayPnl:Number(worst[1].toFixed(2)),worstDayDate:worst[0],bestDayPnl:Number(best[1].toFixed(2)),bestDayDate:best[0],
+    currentStreak:{type:currentType,count:currentCount},bestWinStreak:bestWin,worstLossStreak:worstLoss,disciplineScore:calculateDisciplineScore(trades,settings),reviewCompletion:Number((reviews/Math.max(1,closed.length)*100).toFixed(1)),
+    rDistribution:buckets,sessionStats:buildAdvancedSegment(closed,t=>t.session),setupStats:buildAdvancedSegment(closed,t=>t.setup),averageWinR:Number(avgWinR.toFixed(2)),averageLossR:Number(avgLossR.toFixed(2))
+  };
+}
