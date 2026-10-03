@@ -72,7 +72,7 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
             </div>
             <div className="text-right text-gray-400 text-[11px] font-mono">
               <div>Report Date: {new Date().toLocaleDateString()}</div>
-              <div>Database: Encrypted Room SQLite</div>
+              <div>Database: Local IndexedDB Vault</div>
             </div>
           </div>
 

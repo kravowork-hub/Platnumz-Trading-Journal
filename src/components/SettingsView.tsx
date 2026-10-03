@@ -28,7 +28,6 @@ interface SettingsViewProps {
   settings: AccountSettings;
   onUpdateSettings: (settings: AccountSettings) => void;
   onOpenReportModal: () => void;
-  onOpenAiLabModal: () => void;
   onDataReset: () => void;
   onOpenResetModal?: () => void;
   onLoadDemoData?: () => void;
@@ -38,7 +37,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   settings,
   onUpdateSettings,
   onOpenReportModal,
-  onOpenAiLabModal,
   onDataReset,
   onOpenResetModal,
   onLoadDemoData,
@@ -66,7 +64,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleSave = () => {
     onUpdateSettings(localSettings);
-    showToast('Settings saved to Room Database!');
+    showToast('Settings saved to Local Database!');
   };
 
   // Export Trades to CSV
@@ -94,7 +92,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('Full Room Database backup downloaded');
+    showToast('Full Local Database backup downloaded');
   };
 
   // Restore from JSON
@@ -454,34 +452,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
-      {/* Experimental AI Lab */}
-      <div className="bg-[#121622] p-4 rounded-2xl border border-[#1E2538] space-y-3">
-        <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-          <Sparkles className="w-4 h-4 text-purple-400" />
-          Experimental Tools & AI Lab
-        </h3>
-
-        <button
-          onClick={onOpenAiLabModal}
-          className="w-full p-3 bg-gradient-to-br from-[#1C1728] to-[#121624] hover:border-purple-500 rounded-xl border border-[#2A233D] flex items-center justify-between text-left transition group"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-purple-600/20 text-purple-400 flex items-center justify-center shrink-0">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="font-semibold block text-white text-xs group-hover:text-purple-300 transition">
-                AI Chart Lab
-              </span>
-              <span className="text-[10px] text-gray-400">Structure / FVG Visualizer Preview</span>
-            </div>
-          </div>
-          <span className="text-[10px] font-mono font-bold text-purple-400 bg-purple-950/80 px-2 py-0.5 rounded border border-purple-800/40">
-            OPEN
-          </span>
-        </button>
-      </div>
-
       {/* Offline Database & Stats Management */}
       <div className="bg-[#121622] p-4 rounded-2xl border border-[#1E2538] space-y-3">
         <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center justify-between">
@@ -495,7 +465,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </h3>
 
         <p className="text-[11px] text-gray-400 leading-relaxed">
-          Kravo operates completely offline using browser IndexedDB and Room architecture. All data resides on your physical device.
+          Kravo operates completely offline using browser IndexedDB and IndexedDB architecture. All data resides on your physical device.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">

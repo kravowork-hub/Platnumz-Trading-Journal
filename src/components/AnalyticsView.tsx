@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Trade, AccountSettings, MistakeTag, Emotion } from '../types';
+import { Trade, AccountSettings } from '../types';
 import { 
   formatCurrency, 
   formatR, 
@@ -7,6 +7,7 @@ import {
   calculateMistakeStats, 
   calculatePerformanceStats 
 } from '../utils/calculations';
+import { AdvancedAnalyticsView } from './AdvancedAnalyticsView';
 import { 
   BarChart3, 
   Layers, 
@@ -116,6 +117,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ trades, settings }
 
   return (
     <div className="space-y-4 pb-24 px-3 sm:px-4 max-w-2xl mx-auto pt-2">
+      <AdvancedAnalyticsView trades={trades} settings={settings} />
       
       {/* Category Navigation Pills */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 select-none scrollbar-none">
