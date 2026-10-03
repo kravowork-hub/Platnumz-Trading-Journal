@@ -1,0 +1,39 @@
+/*
+ * Kravo Trading Journal — Android system-bar safe-area fix
+ * Capacitor 8 SystemBars injects --safe-area-inset-* CSS variables.
+ * Browser env() values remain as fallbacks for PWA/web builds.
+ */
+
+:root {
+  --app-safe-top: max(
+    var(--safe-area-inset-top, 0px),
+    env(safe-area-inset-top, 0px)
+  );
+
+  --app-safe-bottom: max(
+    var(--safe-area-inset-bottom, 0px),
+    env(safe-area-inset-bottom, 0px)
+  );
+}
+
+.pt-safe {
+  padding-top: var(--app-safe-top) !important;
+}
+
+.pb-safe {
+  padding-bottom: max(var(--app-safe-bottom), 16px) !important;
+}
+
+/* Use these on full-screen app containers when needed. */
+.safe-area-top {
+  padding-top: var(--app-safe-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: var(--app-safe-bottom);
+}
+
+.safe-area-all {
+  padding-top: var(--app-safe-top);
+  padding-bottom: var(--app-safe-bottom);
+}
