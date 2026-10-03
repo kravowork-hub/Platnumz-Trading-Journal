@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AccountSettings, Trade } from '../types';
 import { kravoDB } from '../db/kravo_db';
 import { 
@@ -18,37 +18,50 @@ import {
   CheckCircle2,
   DollarSign,
   AlertTriangle,
-  ExternalLink
+  RotateCcw,
+  Sun,
+  Moon
 } from 'lucide-react';
-import { PWAInstallButton } from './PWAInstallButton';
-import { getPwaBuilderUrl } from '../utils/pwaBuilder';
+import { Haptics } from '../utils/haptics';
 
 interface SettingsViewProps {
   settings: AccountSettings;
   onUpdateSettings: (settings: AccountSettings) => void;
   onOpenReportModal: () => void;
-  onOpenAndroidExportModal: () => void;
   onOpenAiLabModal: () => void;
   onDataReset: () => void;
-  onOpenPwaBuilder?: () => void;
+  onOpenResetModal?: () => void;
+  onLoadDemoData?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   settings,
   onUpdateSettings,
   onOpenReportModal,
-  onOpenAndroidExportModal,
   onOpenAiLabModal,
   onDataReset,
-  onOpenPwaBuilder,
+  onOpenResetModal,
+  onLoadDemoData,
 }) => {
   const [localSettings, setLocalSettings] = useState<AccountSettings>(settings);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  useEffect(() => {
+    setLocalSettings(settings);
+  }, [settings]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleThemeChange = (mode: 'dark' | 'light') => {
+    const updated: AccountSettings = { ...localSettings, themeMode: mode };
+    setLocalSettings(updated);
+    onUpdateSettings(updated);
+    Haptics.light();
+    showToast(mode === 'light' ? 'Daylight Light mode activated' : 'Night Dark mode activated');
   };
 
   const handleSave = () => {
@@ -125,11 +138,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <div>
               <h2 className="text-sm font-bold text-white">{localSettings.appName}</h2>
               <span className="text-[10px] text-gray-400 font-mono">
-                Android Build v1.2.0 • Material 3
+                Offline Vault • Material 3
               </span>
             </div>
           </div>
-          <PWAInstallButton />
+
+          {/* Quick Theme Switcher */}
+          <button
+            type="button"
+            onClick={() => handleThemeChange(localSettings.themeMode === 'light' ? 'dark' : 'light')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0C0F17] hover:bg-[#171D2D] border border-[#1E2538] text-xs font-medium transition active:scale-95 text-gray-200"
+            title="Toggle Light / Dark mode"
+          >
+            {localSettings.themeMode === 'light' ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-500" />
+                <span className="text-[11px] font-semibold">Light</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-[11px] font-semibold">Dark</span>
+              </>
+            )}
+          </button>
         </div>
 
         <div className="grid grid-cols-2 gap-3 pt-2">
@@ -151,6 +183,77 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               className="w-full bg-[#0C0F17] border border-[#1E2538] rounded-xl px-3 py-2 text-xs text-white"
             />
           </div>
+        </div>
+      </div>
+
+      {/* Theme & Display Appearance Selection */}
+      <div className="bg-[#121622] p-4 rounded-2xl border border-[#1E2538] space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+            <Sun className="w-4 h-4 text-amber-400" />
+            <span>Theme & Display Mode</span>
+          </h3>
+          <span className="text-[10px] text-emerald-400 font-mono font-semibold">
+            {localSettings.themeMode === 'light' ? 'DAYLIGHT ACTIVE' : 'NIGHT MODE ACTIVE'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {/* Dark / Night Mode Option */}
+          <button
+            type="button"
+            onClick={() => handleThemeChange('dark')}
+            className={`theme-preview-dark p-3.5 rounded-2xl border text-left transition flex flex-col justify-between relative overflow-hidden active:scale-98 ${
+              localSettings.themeMode !== 'light'
+                ? 'bg-gradient-to-br from-[#101420] to-[#090B10] border-emerald-500 shadow-md ring-1 ring-emerald-500/30'
+                : 'bg-[#0C0F17] border-[#1E2538] hover:border-gray-600 opacity-70 hover:opacity-100'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-8 h-8 rounded-xl bg-blue-950/60 border border-blue-800/40 flex items-center justify-center text-blue-400">
+                <Moon className="w-4 h-4" />
+              </div>
+              {localSettings.themeMode !== 'light' && (
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-full border border-emerald-800/60 font-mono">
+                  ACTIVE
+                </span>
+              )}
+            </div>
+            <div>
+              <span className="font-bold text-xs text-white block">Night / Dark Mode</span>
+              <span className="text-[10px] text-gray-400 leading-snug block mt-0.5">
+                OLED terminal black, high-contrast neon data, easier on eyes in dark rooms.
+              </span>
+            </div>
+          </button>
+
+          {/* Light / Daylight Mode Option */}
+          <button
+            type="button"
+            onClick={() => handleThemeChange('light')}
+            className={`p-3.5 rounded-2xl border text-left transition flex flex-col justify-between relative overflow-hidden active:scale-98 ${
+              localSettings.themeMode === 'light'
+                ? 'bg-gradient-to-br from-white to-slate-100 border-emerald-500 shadow-md ring-1 ring-emerald-500/30'
+                : 'bg-[#0C0F17] border-[#1E2538] hover:border-gray-600 opacity-70 hover:opacity-100'
+            }`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-600">
+                <Sun className="w-4 h-4" />
+              </div>
+              {localSettings.themeMode === 'light' && (
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-300 font-mono">
+                  ACTIVE
+                </span>
+              )}
+            </div>
+            <div>
+              <span className="font-bold text-xs text-slate-900 block">Daylight / Light Mode</span>
+              <span className="text-[10px] text-slate-500 leading-snug block mt-0.5">
+                Crisp financial paper layout, clean white cards, high sunlight visibility.
+              </span>
+            </div>
+          </button>
         </div>
       </div>
 
@@ -293,50 +396,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         )}
       </div>
 
-      {/* App Manifest & PWA Installation Standards */}
-      <div className="bg-[#121622] p-4 rounded-2xl border border-[#1E2538] space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-            <Smartphone className="w-4 h-4 text-emerald-400" />
-            Web App Manifest & Android WebAPK Info
-          </h3>
-          <span className="text-[10px] bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded-full font-mono font-semibold">
-            VALIDATED
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-          <div className="bg-[#0C0F17] p-2.5 rounded-xl border border-[#1C2336]">
-            <span className="text-[9px] text-gray-500 font-sans block">Display Mode</span>
-            <span className="text-white font-bold">standalone</span>
-          </div>
-          <div className="bg-[#0C0F17] p-2.5 rounded-xl border border-[#1C2336]">
-            <span className="text-[9px] text-gray-500 font-sans block">Orientation</span>
-            <span className="text-white font-bold">portrait</span>
-          </div>
-          <div className="bg-[#0C0F17] p-2.5 rounded-xl border border-[#1C2336]">
-            <span className="text-[9px] text-gray-500 font-sans block">Theme / Status Bar</span>
-            <span className="text-emerald-400 font-bold">#090B10</span>
-          </div>
-          <div className="bg-[#0C0F17] p-2.5 rounded-xl border border-[#1C2336]">
-            <span className="text-[9px] text-gray-500 font-sans block">Shortcuts Attached</span>
-            <span className="text-blue-400 font-bold">3 Actions (Trade, Analytics, Cal)</span>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between pt-1 text-xs">
-          <span className="text-gray-400 text-[11px]">Specification: W3C Web App Manifest v1</span>
-          <a
-            href="/manifest.webmanifest"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-emerald-400 hover:underline text-[11px] font-mono flex items-center gap-1"
-          >
-            View Raw manifest.webmanifest ↗
-          </a>
-        </div>
-      </div>
-
       {/* Data, Backup & Report Export */}
       <div className="bg-[#121622] p-4 rounded-2xl border border-[#1E2538] space-y-3">
         <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
@@ -395,61 +454,71 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
-      {/* Advanced Modules: Android APK & Studio Hub, AI Chart Lab */}
+      {/* Experimental AI Lab */}
       <div className="bg-[#121622] p-4 rounded-2xl border border-[#1E2538] space-y-3">
         <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-          <Smartphone className="w-4 h-4 text-emerald-400" />
-          Android APK & Native Studio Hub
+          <Sparkles className="w-4 h-4 text-purple-400" />
+          Experimental Tools & AI Lab
         </h3>
 
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <button
-            onClick={onOpenAndroidExportModal}
-            className="p-3 bg-gradient-to-br from-[#151D2D] to-[#121724] hover:border-emerald-500 rounded-xl border border-emerald-900/40 flex items-center gap-2.5 text-left transition shadow-sm"
-          >
-            <Smartphone className="w-5 h-5 text-emerald-400 shrink-0" />
-            <div>
-              <span className="font-semibold block text-white flex items-center gap-1">
-                Install / Build APK
-                <span className="text-[9px] bg-emerald-500 text-black px-1 rounded font-bold">APK</span>
-              </span>
-              <span className="text-[10px] text-gray-400">WebAPK, Capacitor, Kotlin Studio</span>
-            </div>
-          </button>
-
-          <button
-            onClick={onOpenAiLabModal}
-            className="p-3 bg-gradient-to-br from-[#1C1728] to-[#121624] hover:border-purple-500 rounded-xl border border-[#2A233D] flex items-center gap-2.5 text-left transition"
-          >
-            <Sparkles className="w-5 h-5 text-purple-400 shrink-0" />
-            <div>
-              <span className="font-semibold block text-white">AI Chart Lab</span>
-              <span className="text-[10px] text-gray-400">Structure / FVG Preview</span>
-            </div>
-          </button>
-        </div>
-
-        {/* 1-Click PWABuilder Online Package Generator */}
         <button
-          onClick={onOpenPwaBuilder}
-          className="w-full text-left p-3 bg-gradient-to-r from-blue-950/50 via-indigo-950/40 to-slate-900/60 hover:from-blue-900/50 hover:to-indigo-900/50 border border-blue-800/40 hover:border-blue-600/60 rounded-xl flex items-center justify-between text-xs text-white transition group"
+          onClick={onOpenAiLabModal}
+          className="w-full p-3 bg-gradient-to-br from-[#1C1728] to-[#121624] hover:border-purple-500 rounded-xl border border-[#2A233D] flex items-center justify-between text-left transition group"
         >
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-blue-600/30 text-blue-400 flex items-center justify-center shrink-0">
-              <ExternalLink className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg bg-purple-600/20 text-purple-400 flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <span className="font-bold text-gray-100 flex items-center gap-1.5">
-                Run on Microsoft PWABuilder
-                <span className="text-[9px] bg-blue-600/40 text-blue-300 px-1 rounded font-mono font-bold">.APK / .AAB</span>
+              <span className="font-semibold block text-white text-xs group-hover:text-purple-300 transition">
+                AI Chart Lab
               </span>
-              <span className="text-[10px] text-gray-400">Auto-audit manifest & generate signed package in 1-click</span>
+              <span className="text-[10px] text-gray-400">Structure / FVG Visualizer Preview</span>
             </div>
           </div>
-          <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-950/80 px-2 py-0.5 rounded border border-blue-700/50 group-hover:bg-blue-600 group-hover:text-white transition">
-            LAUNCH ↗
+          <span className="text-[10px] font-mono font-bold text-purple-400 bg-purple-950/80 px-2 py-0.5 rounded border border-purple-800/40">
+            OPEN
           </span>
         </button>
+      </div>
+
+      {/* Offline Database & Stats Management */}
+      <div className="bg-[#121622] p-4 rounded-2xl border border-[#1E2538] space-y-3">
+        <h3 className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <RefreshCw className="w-4 h-4 text-rose-400" />
+            Stats & Local Storage Management
+          </span>
+          <span className="text-[10px] text-emerald-400 font-mono bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40">
+            100% Offline Vault
+          </span>
+        </h3>
+
+        <p className="text-[11px] text-gray-400 leading-relaxed">
+          Kravo operates completely offline using browser IndexedDB and Room architecture. All data resides on your physical device.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+          {onOpenResetModal && (
+            <button
+              onClick={onOpenResetModal}
+              className="py-3 px-4 bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 hover:text-white rounded-xl border border-rose-800/50 font-bold text-xs flex items-center justify-center gap-2 transition active:scale-98 shadow-sm"
+            >
+              <RotateCcw className="w-4 h-4 text-rose-400" />
+              <span>Reset All Stats to Zero</span>
+            </button>
+          )}
+
+          {onLoadDemoData && (
+            <button
+              onClick={onLoadDemoData}
+              className="py-3 px-4 bg-[#181E2E] hover:bg-[#20283C] text-gray-300 hover:text-emerald-300 rounded-xl border border-[#232B40] text-xs font-semibold flex items-center justify-center gap-2 transition"
+            >
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <span>Load Demo Sample Trades</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Save Settings Bar */}
@@ -459,22 +528,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold rounded-xl transition shadow-lg shadow-emerald-500/25 active:scale-98"
         >
           Save All Settings
-        </button>
-      </div>
-
-      {/* Danger Zone: Reset to Defaults */}
-      <div className="pt-4 text-center">
-        <button
-          onClick={async () => {
-            if (confirm('Reset database to clean initial sample trades and default settings?')) {
-              await kravoDB.resetToDefaults();
-              onDataReset();
-              showToast('Database reset to defaults');
-            }
-          }}
-          className="text-xs text-rose-500/70 hover:text-rose-400 hover:underline"
-        >
-          Reset Database to Initial Sample State
         </button>
       </div>
 

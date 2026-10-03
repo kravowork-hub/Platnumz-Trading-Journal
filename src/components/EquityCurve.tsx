@@ -8,6 +8,7 @@ interface EquityCurveProps {
   startingBalance: number;
   currency: string;
   onSelectTrade?: (tradeId: string) => void;
+  isLight?: boolean;
 }
 
 export type EquityCurveMode = 'BALANCE' | 'PNL' | 'R_MULTIPLE';
@@ -17,6 +18,7 @@ export const EquityCurve: React.FC<EquityCurveProps> = ({
   startingBalance,
   currency,
   onSelectTrade,
+  isLight = false,
 }) => {
   const [mode, setMode] = useState<EquityCurveMode>('PNL');
   const [hoveredPoint, setHoveredPoint] = useState<EquityPoint | null>(null);
@@ -108,29 +110,31 @@ export const EquityCurve: React.FC<EquityCurveProps> = ({
   const activePoint = hoveredPoint || (points.length > 0 ? points[points.length - 1] : null);
 
   return (
-    <div className="bg-[#11141D] rounded-2xl p-4 border border-[#1E2435] shadow-lg">
+    <div className={`rounded-2xl p-4 border shadow-sm transition-colors ${
+      isLight ? 'bg-white border-slate-200' : 'bg-[#11141D] border-[#1E2435]'
+    }`}>
       {/* Header & Mode Switcher */}
       <div className="flex items-center justify-between mb-3">
         <div>
-          <div className="flex items-center gap-1.5 text-xs text-gray-400 font-medium">
-            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+          <div className={`flex items-center gap-1.5 text-xs font-medium ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+            <TrendingUp className={`w-3.5 h-3.5 ${isLight ? 'text-emerald-600' : 'text-emerald-400'}`} />
             <span>Interactive Equity Curve</span>
           </div>
-          <div className="text-xl font-bold font-mono text-white mt-0.5 flex items-baseline gap-2">
+          <div className={`text-xl font-bold font-mono mt-0.5 flex items-baseline gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
             {mode === 'BALANCE' && formatCurrency(activePoint?.balance ?? startingBalance, currency)}
             {mode === 'PNL' && (
-              <span className={(activePoint?.cumulativePnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+              <span className={(activePoint?.cumulativePnl ?? 0) >= 0 ? (isLight ? 'text-emerald-600' : 'text-emerald-400') : (isLight ? 'text-rose-600' : 'text-rose-400')}>
                 {formatCurrency(activePoint?.cumulativePnl ?? 0, currency)}
               </span>
             )}
             {mode === 'R_MULTIPLE' && (
-              <span className={(activePoint?.cumulativeR ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+              <span className={(activePoint?.cumulativeR ?? 0) >= 0 ? (isLight ? 'text-emerald-600' : 'text-emerald-400') : (isLight ? 'text-rose-600' : 'text-rose-400')}>
                 {formatR(activePoint?.cumulativeR ?? 0)}
               </span>
             )}
 
             {activePoint?.tradeId && (
-              <span className="text-[11px] font-sans font-normal text-gray-400">
+              <span className={`text-[11px] font-sans font-normal ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
                 (Trade #{activePoint.index}: {activePoint.instrument} {activePoint.direction})
               </span>
             )}
@@ -138,11 +142,13 @@ export const EquityCurve: React.FC<EquityCurveProps> = ({
         </div>
 
         {/* Mode Toggle Buttons */}
-        <div className="flex bg-[#0A0C13] p-1 rounded-xl border border-[#1E2433]">
+        <div className={`flex p-1 rounded-xl border ${isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#0A0C13] border-[#1E2433]'}`}>
           <button
             onClick={() => setMode('PNL')}
             className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-all ${
-              mode === 'PNL' ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40' : 'text-gray-400'
+              mode === 'PNL' 
+                ? (isLight ? 'bg-white text-emerald-700 shadow-sm border border-slate-200' : 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40')
+                : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white')
             }`}
           >
             P&L
@@ -150,7 +156,9 @@ export const EquityCurve: React.FC<EquityCurveProps> = ({
           <button
             onClick={() => setMode('R_MULTIPLE')}
             className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-all ${
-              mode === 'R_MULTIPLE' ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40' : 'text-gray-400'
+              mode === 'R_MULTIPLE'
+                ? (isLight ? 'bg-white text-emerald-700 shadow-sm border border-slate-200' : 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40')
+                : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white')
             }`}
           >
             R
@@ -158,7 +166,9 @@ export const EquityCurve: React.FC<EquityCurveProps> = ({
           <button
             onClick={() => setMode('BALANCE')}
             className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-all ${
-              mode === 'BALANCE' ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40' : 'text-gray-400'
+              mode === 'BALANCE'
+                ? (isLight ? 'bg-white text-emerald-700 shadow-sm border border-slate-200' : 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40')
+                : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-gray-400 hover:text-white')
             }`}
           >
             Balance
@@ -178,13 +188,13 @@ export const EquityCurve: React.FC<EquityCurveProps> = ({
         >
           <defs>
             <linearGradient id="equityGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10B981" stopOpacity="0.25" />
+              <stop offset="0%" stopColor="#10B981" stopOpacity={isLight ? 0.15 : 0.25} />
               <stop offset="100%" stopColor="#10B981" stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="equityLineGrad" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="#059669" />
               <stop offset="50%" stopColor="#10B981" />
-              <stop offset="100%" stopColor="#34D399" />
+              <stop offset="100%" stopColor={isLight ? '#059669' : '#34D399'} />
             </linearGradient>
           </defs>
 
@@ -194,7 +204,7 @@ export const EquityCurve: React.FC<EquityCurveProps> = ({
             y1={paddingTop}
             x2={width - paddingX}
             y2={paddingTop}
-            stroke="#1B2130"
+            stroke={isLight ? '#F1F5F9' : '#1B2130'}
             strokeDasharray="2 3"
           />
           <line
@@ -202,7 +212,7 @@ export const EquityCurve: React.FC<EquityCurveProps> = ({
             y1={paddingTop + plotHeight / 2}
             x2={width - paddingX}
             y2={paddingTop + plotHeight / 2}
-            stroke="#1B2130"
+            stroke={isLight ? '#F1F5F9' : '#1B2130'}
             strokeDasharray="2 3"
           />
           <line
@@ -210,7 +220,7 @@ export const EquityCurve: React.FC<EquityCurveProps> = ({
             y1={paddingTop + plotHeight}
             x2={width - paddingX}
             y2={paddingTop + plotHeight}
-            stroke="#1B2130"
+            stroke={isLight ? '#E2E8F0' : '#1B2130'}
           />
 
           {/* Zero baseline for PNL / R */}
@@ -220,7 +230,7 @@ export const EquityCurve: React.FC<EquityCurveProps> = ({
               y1={zeroY}
               x2={width - paddingX}
               y2={zeroY}
-              stroke="#334155"
+              stroke={isLight ? '#CBD5E1' : '#334155'}
               strokeWidth="1.2"
               strokeDasharray="3 3"
             />

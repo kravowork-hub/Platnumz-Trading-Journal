@@ -26,9 +26,11 @@ import {
   Star, 
   Smile, 
   AlertCircle,
+  AlertTriangle,
   ShieldCheck,
   Brain
 } from 'lucide-react';
+import { Haptics } from '../utils/haptics';
 
 interface TradeDetailModalProps {
   trade: Trade | null;
@@ -79,6 +81,7 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
   const [stressRating, setStressRating] = useState<number>(trade?.review?.stressRating || 1);
   const [focusRating, setFocusRating] = useState<number>(trade?.review?.focusRating || 5);
   const [isSavedToast, setIsSavedToast] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   if (!isOpen || !trade) return null;
 
@@ -153,12 +156,14 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             </button>
             <button
               onClick={() => {
-                if (confirm('Delete this trade permanently?')) {
-                  onDelete(trade.id);
-                  onClose();
-                }
+                Haptics.light();
+                setShowDeleteConfirm(prev => !prev);
               }}
-              className="p-2 rounded-xl bg-[#171D2D] hover:bg-rose-950/60 hover:text-rose-400 text-gray-400 transition"
+              className={`p-2 rounded-xl transition ${
+                showDeleteConfirm 
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30' 
+                  : 'bg-[#171D2D] hover:bg-rose-950/60 hover:text-rose-400 text-gray-400'
+              }`}
               title="Delete Trade"
             >
               <Trash2 className="w-4 h-4" />
@@ -171,6 +176,38 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Native Delete Confirmation Banner */}
+        {showDeleteConfirm && (
+          <div className="bg-rose-950/90 border-b border-rose-800/80 p-3 px-4 flex items-center justify-between gap-3 animate-fadeIn">
+            <div className="flex items-center gap-2 text-xs">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span className="font-semibold text-rose-100">Permanently delete Trade #{trade.tradeNumber}?</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  Haptics.light();
+                  setShowDeleteConfirm(false);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-[#151926] hover:bg-[#20273D] text-gray-300 text-xs font-medium transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  Haptics.warning();
+                  onDelete(trade.id);
+                  onClose();
+                }}
+                className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-rose-600/30"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Tab Navigation: Overview | Post-Trade Review | Charts */}
         <div className="flex border-b border-[#1C2234] bg-[#0A0D15] px-4">
@@ -582,13 +619,33 @@ export const TradeDetailModal: React.FC<TradeDetailModalProps> = ({
         )}
 
         {/* Footer */}
-        <div className="p-3 border-t border-[#1C2234] bg-[#0A0D15] flex justify-end">
+        <div className="p-3 border-t border-[#1C2234] bg-[#0A0D15] flex items-center justify-between gap-2">
           <button
-            onClick={onClose}
-            className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#171D2D] hover:bg-[#20273D] text-gray-300 transition"
+            onClick={() => {
+              Haptics.light();
+              setShowDeleteConfirm(true);
+            }}
+            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-800/40 transition flex items-center gap-1.5 active:scale-95"
           >
-            Close
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Delete Trade</span>
           </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onEdit(trade)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#171D2D] hover:bg-[#20273D] text-emerald-400 border border-emerald-900/40 transition flex items-center gap-1.5 active:scale-95"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Edit</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#171D2D] hover:bg-[#20273D] text-gray-300 transition active:scale-95"
+            >
+              Close
+            </button>
+          </div>
         </div>
 
       </div>

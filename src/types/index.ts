@@ -136,6 +136,9 @@ export interface AccountSettings {
   dailyReminderTime: string; // "20:00"
   weeklyReviewReminder: boolean;
   
+  // Theme & Appearance
+  themeMode?: 'dark' | 'light';
+  
   // Setup completion
   onboardingCompleted: boolean;
 }

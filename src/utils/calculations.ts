@@ -93,7 +93,7 @@ export function calculateTradeOutcome(
  * 6. Journal completion: completed post-trade review (10 pts)
  */
 export function calculateDisciplineScore(trades: Trade[], settings?: AccountSettings): number {
-  if (trades.length === 0) return 100;
+  if (trades.length === 0) return 0;
   
   const maxRisk = settings?.maxRiskPerTrade ?? 2.0;
   let totalScore = 0;

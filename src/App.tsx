@@ -14,7 +14,6 @@ import {
   PostTradeReview 
 } from './types';
 import { kravoDB, DEFAULT_SETTINGS } from './db/kravo_db';
-import { AndroidStatusBar } from './components/AndroidStatusBar';
 import { BottomNav, NavTab } from './components/BottomNav';
 import { DashboardView } from './components/DashboardView';
 import { JournalView } from './components/JournalView';
@@ -31,8 +30,7 @@ import { OnboardingWizard } from './components/OnboardingWizard';
 import { ImageViewerModal } from './components/ImageViewerModal';
 import { AiChartLabModal } from './components/AiChartLabModal';
 import { ExportReportModal } from './components/ExportReportModal';
-import { AndroidCodeExportModal } from './components/AndroidCodeExportModal';
-import { PwaBuilderModal } from './components/PwaBuilderModal';
+import { ResetStatsModal } from './components/ResetStatsModal';
 import { AndroidToast, ToastMessage } from './components/AndroidToast';
 import { useAndroidBackButton } from './hooks/useAndroidBackButton';
 import { Haptics } from './utils/haptics';
@@ -59,9 +57,8 @@ export default function App() {
   const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
   const [riskCalcOpen, setRiskCalcOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
-  const [androidExportModalOpen, setAndroidExportModalOpen] = useState(false);
-  const [pwaBuilderModalOpen, setPwaBuilderModalOpen] = useState(false);
   const [aiLabModalOpen, setAiLabModalOpen] = useState(false);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
 
   // Image Viewer
   const [imageViewer, setImageViewer] = useState<{ isOpen: boolean; url: string | null; caption?: string }>({
@@ -82,9 +79,8 @@ export default function App() {
     tradeModalOpen || 
     riskCalcOpen || 
     reportModalOpen || 
-    androidExportModalOpen || 
-    pwaBuilderModalOpen || 
-    aiLabModalOpen;
+    aiLabModalOpen ||
+    resetModalOpen;
 
   const closeTopModal = useCallback(() => {
     if (imageViewer.isOpen) {
@@ -98,14 +94,12 @@ export default function App() {
       setRiskCalcOpen(false);
     } else if (reportModalOpen) {
       setReportModalOpen(false);
-    } else if (pwaBuilderModalOpen) {
-      setPwaBuilderModalOpen(false);
-    } else if (androidExportModalOpen) {
-      setAndroidExportModalOpen(false);
     } else if (aiLabModalOpen) {
       setAiLabModalOpen(false);
+    } else if (resetModalOpen) {
+      setResetModalOpen(false);
     }
-  }, [imageViewer.isOpen, selectedTradeId, tradeModalOpen, riskCalcOpen, reportModalOpen, pwaBuilderModalOpen, androidExportModalOpen, aiLabModalOpen]);
+  }, [imageViewer.isOpen, selectedTradeId, tradeModalOpen, riskCalcOpen, reportModalOpen, aiLabModalOpen, resetModalOpen]);
 
   const canGoBackView = secondaryView !== 'NONE' || currentTab !== 'dashboard';
 
@@ -225,6 +219,52 @@ export default function App() {
     showToast('Vault settings updated', 'SUCCESS');
   };
 
+  // Fast theme toggle
+  const handleToggleTheme = async () => {
+    const nextMode = settings.themeMode === 'light' ? 'dark' : 'light';
+    const newSettings: AccountSettings = { ...settings, themeMode: nextMode };
+    await kravoDB.saveSettings(newSettings);
+    setSettings(newSettings);
+    Haptics.light();
+    showToast(nextMode === 'light' ? 'Daylight Light mode activated' : 'Night Dark mode activated', 'INFO');
+  };
+
+  // Apply Theme Mode (Dark / Light) to HTML element & Meta Tags
+  useEffect(() => {
+    const root = document.documentElement;
+    const isLight = settings.themeMode === 'light';
+    if (isLight) {
+      root.classList.remove('dark');
+      root.classList.add('light');
+      root.setAttribute('data-theme', 'light');
+    } else {
+      root.classList.remove('light');
+      root.classList.add('dark');
+      root.setAttribute('data-theme', 'dark');
+    }
+
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', isLight ? '#F4F6F9' : '#090B10');
+    }
+  }, [settings.themeMode]);
+
+  // Reset all stats to zero
+  const handleResetAllStats = async () => {
+    await kravoDB.resetAllStats();
+    await loadDatabaseData();
+    Haptics.warning();
+    showToast('All stats, trades, and reviews reset to zero', 'SUCCESS');
+  };
+
+  // Load sample demo trades for previewing
+  const handleLoadDemoData = async () => {
+    await kravoDB.seedSampleData();
+    await loadDatabaseData();
+    Haptics.success();
+    showToast('Demo sample trades loaded', 'INFO');
+  };
+
   const handleOpenEditTrade = (trade: Trade) => {
     setSelectedTradeId(null);
     setEditingTrade(trade);
@@ -274,14 +314,6 @@ export default function App() {
         />
       )}
 
-      {/* Android System Status Bar */}
-      <AndroidStatusBar
-        appName={settings.appName}
-        isLocked={isLocked}
-        onOpenApkModal={() => setAndroidExportModalOpen(true)}
-        onOpenPwaBuilder={() => setPwaBuilderModalOpen(true)}
-      />
-
       {/* Main Container */}
       <main className="max-w-2xl mx-auto px-1 sm:px-2 pt-1">
         {/* Secondary Back Navigation if sub-view is open */}
@@ -328,7 +360,8 @@ export default function App() {
                 onOpenGoals={() => setSecondaryView('GOALS')}
                 onOpenReviews={() => setSecondaryView('REVIEWS')}
                 onNavigateTab={(tab) => setCurrentTab(tab)}
-                onOpenPwaBuilder={() => setPwaBuilderModalOpen(true)}
+                onOpenResetModal={() => setResetModalOpen(true)}
+                onToggleTheme={handleToggleTheme}
               />
             )}
 
@@ -367,10 +400,10 @@ export default function App() {
                 settings={settings}
                 onUpdateSettings={handleUpdateSettings}
                 onOpenReportModal={() => setReportModalOpen(true)}
-                onOpenAndroidExportModal={() => setAndroidExportModalOpen(true)}
                 onOpenAiLabModal={() => setAiLabModalOpen(true)}
                 onDataReset={loadDatabaseData}
-                onOpenPwaBuilder={() => setPwaBuilderModalOpen(true)}
+                onOpenResetModal={() => setResetModalOpen(true)}
+                onLoadDemoData={handleLoadDemoData}
               />
             )}
           </>
@@ -399,6 +432,7 @@ export default function App() {
             setEditingTrade(null);
           }}
           onSaveTrade={handleSaveTrade}
+          onDeleteTrade={handleDeleteTrade}
           editingTrade={editingTrade}
           strategies={strategies}
           checklistTemplate={checklistTemplate}
@@ -440,19 +474,14 @@ export default function App() {
         />
       )}
 
-      {/* Android Kotlin Studio Code Exporter Modal */}
-      {androidExportModalOpen && (
-        <AndroidCodeExportModal
-          isOpen={androidExportModalOpen}
-          onClose={() => setAndroidExportModalOpen(false)}
-        />
-      )}
-
-      {/* PWABuilder Helper & Launcher Modal */}
-      {pwaBuilderModalOpen && (
-        <PwaBuilderModal
-          isOpen={pwaBuilderModalOpen}
-          onClose={() => setPwaBuilderModalOpen(false)}
+      {/* Reset All Stats Modal */}
+      {resetModalOpen && (
+        <ResetStatsModal
+          isOpen={resetModalOpen}
+          onClose={() => setResetModalOpen(false)}
+          onConfirmReset={handleResetAllStats}
+          onLoadDemoData={handleLoadDemoData}
+          tradeCount={trades.length}
         />
       )}
 

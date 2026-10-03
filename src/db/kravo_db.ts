@@ -69,19 +69,20 @@ export const DEFAULT_SETTINGS: AccountSettings = {
   appName: 'Kravo Trading Journal',
   traderName: 'Mobile Trader',
   currency: 'USD',
-  startingBalance: 25000,
-  currentBalance: 28420,
+  startingBalance: 0,
+  currentBalance: 0,
   defaultRiskPercentage: 1.0,
   maxRiskPerTrade: 1.5,
-  maxDailyLoss: 750,
+  maxDailyLoss: 500,
   maxTradesPerDay: 4,
   pinEnabled: false,
-  pinCode: '1234',
+  pinCode: '',
   biometricEnabled: false,
   autoLockMinutes: 5,
   notificationsEnabled: true,
   dailyReminderTime: '21:00',
   weeklyReviewReminder: true,
+  themeMode: 'dark',
   onboardingCompleted: true,
 };
 
@@ -92,7 +93,7 @@ export const DEFAULT_GOALS: Goal[] = [
     description: 'Record every trade with before/after screenshots and post-trade review.',
     category: 'JOURNALING',
     targetValue: 30,
-    currentValue: 18,
+    currentValue: 0,
     unit: 'trades',
     period: 'MONTHLY',
     completed: false,
@@ -105,7 +106,7 @@ export const DEFAULT_GOALS: Goal[] = [
     description: 'Zero tolerance for exceeding position size limits on all executions.',
     category: 'RISK',
     targetValue: 100,
-    currentValue: 94,
+    currentValue: 0,
     unit: '% adherence',
     period: 'MONTHLY',
     completed: false,
@@ -118,7 +119,7 @@ export const DEFAULT_GOALS: Goal[] = [
     description: 'Keep revenge trading occurrences at zero for the entire calendar month.',
     category: 'DISCIPLINE',
     targetValue: 0,
-    currentValue: 1, // Only 1 occurred
+    currentValue: 0,
     unit: 'violations',
     period: 'MONTHLY',
     completed: false,
@@ -131,7 +132,7 @@ export const DEFAULT_GOALS: Goal[] = [
     description: 'Verify all 9 setup criteria before clicking the buy/sell button.',
     category: 'PROCESS',
     targetValue: 90,
-    currentValue: 88,
+    currentValue: 0,
     unit: '% compliance',
     period: 'MONTHLY',
     completed: false,
@@ -607,22 +608,18 @@ class KravoRoomDB {
         const req = store.getAll();
         req.onsuccess = () => {
           let trades: Trade[] = req.result || [];
-          if (trades.length === 0) {
-            // First time initialization with realistic sample trades
-            trades = INITIAL_SAMPLE_TRADES;
-            this.seedInitialData();
-          }
+          // Clean zero baseline: do not auto-seed sample trades
           // Sort chronologically descending
-          trades.sort((a, b) => new Date(`${b.entryDate}T${b.entryTime}`).getTime() - new Date(`${a.entryDate}T${a.entryTime}`).getTime());
+          trades.sort((a, b) => new Date(`${b.entryDate}T${b.entryTime || '00:00'}`).getTime() - new Date(`${a.entryDate}T${a.entryTime || '00:00'}`).getTime());
           resolve(trades);
         };
         req.onerror = () => {
-          const fallback = this.loadFromLocalStorage<Trade[]>('trades', INITIAL_SAMPLE_TRADES);
+          const fallback = this.loadFromLocalStorage<Trade[]>('trades', []);
           resolve(fallback);
         };
       });
     } catch {
-      return this.loadFromLocalStorage<Trade[]>('trades', INITIAL_SAMPLE_TRADES);
+      return this.loadFromLocalStorage<Trade[]>('trades', []);
     }
   }
 
@@ -638,7 +635,7 @@ class KravoRoomDB {
       });
     } catch {
       // Fallback
-      const current = this.loadFromLocalStorage<Trade[]>('trades', INITIAL_SAMPLE_TRADES);
+      const current = this.loadFromLocalStorage<Trade[]>('trades', []);
       const idx = current.findIndex(t => t.id === trade.id);
       if (idx >= 0) {
         current[idx] = trade;
@@ -661,7 +658,7 @@ class KravoRoomDB {
         req.onerror = () => reject(req.error);
       });
     } catch {
-      const current = this.loadFromLocalStorage<Trade[]>('trades', INITIAL_SAMPLE_TRADES);
+      const current = this.loadFromLocalStorage<Trade[]>('trades', []);
       const filtered = current.filter(t => t.id !== id);
       this.saveToLocalStorage('trades', filtered);
     }
@@ -746,27 +743,70 @@ class KravoRoomDB {
   }
 
   // --- SEEDING & RESET ---
-  async seedInitialData(): Promise<void> {
+  async resetAllStats(): Promise<void> {
+    try {
+      const db = await this.getDB();
+      // Clear trades store
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('trades', 'readwrite');
+        const store = tx.objectStore('trades');
+        const req = store.clear();
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+      // Clear daily reviews store
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('dailyReviews', 'readwrite');
+        const store = tx.objectStore('dailyReviews');
+        const req = store.clear();
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      // Ignored
+    }
+    this.saveToLocalStorage('trades', []);
+    this.saveToLocalStorage('daily_reviews', []);
+
+    // Reset goals progress to 0
+    try {
+      const goals = await this.getGoals();
+      const zeroGoals = goals.map(g => ({ ...g, currentValue: 0, completed: false }));
+      await this.saveGoals(zeroGoals);
+    } catch {}
+
+    // Reset account settings starting and current balance to 0
+    try {
+      const settings = await this.getSettings();
+      settings.startingBalance = 0;
+      settings.currentBalance = 0;
+      await this.saveSettings(settings);
+    } catch {}
+  }
+
+  async seedSampleData(): Promise<void> {
     for (const t of INITIAL_SAMPLE_TRADES) {
       await this.saveTrade(t);
     }
+    const settings = await this.getSettings();
+    settings.startingBalance = 25000;
+    settings.currentBalance = 28420;
+    await this.saveSettings(settings);
+
+    const goals = await this.getGoals();
+    const updatedGoals = goals.map((g, idx) => {
+      const testVals = [18, 94, 0, 1.8];
+      return { ...g, currentValue: testVals[idx] || 0 };
+    });
+    await this.saveGoals(updatedGoals);
+  }
+
+  async resetToDefaults(): Promise<void> {
+    await this.resetAllStats();
     await this.saveStrategies(DEFAULT_STRATEGIES);
     await this.saveChecklistTemplate(DEFAULT_CHECKLIST);
     await this.saveGoals(DEFAULT_GOALS);
     await this.saveSettings(DEFAULT_SETTINGS);
-  }
-
-  async resetToDefaults(): Promise<void> {
-    try {
-      const db = await this.getDB();
-      const stores = ['trades', 'strategies', 'checklists', 'goals', 'dailyReviews', 'settings'];
-      const tx = db.transaction(stores, 'readwrite');
-      stores.forEach(s => tx.objectStore(s).clear());
-    } catch {
-      // Ignored
-    }
-    localStorage.clear();
-    await this.seedInitialData();
   }
 
   // --- EXPORT TO CSV ---

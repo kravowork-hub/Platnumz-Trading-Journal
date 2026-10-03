@@ -36,6 +36,7 @@ interface TradeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaveTrade: (trade: Trade) => void;
+  onDeleteTrade?: (tradeId: string) => void;
   editingTrade?: Trade | null;
   strategies: StrategyDefinition[];
   checklistTemplate: ChecklistItem[];
@@ -73,6 +74,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
   isOpen,
   onClose,
   onSaveTrade,
+  onDeleteTrade,
   editingTrade,
   strategies,
   checklistTemplate,
@@ -85,6 +87,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
 
   // Form State
   const [activeTab, setActiveTab] = useState<'DETAILS' | 'CHECKLIST' | 'SCREENSHOTS'>('DETAILS');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [instrument, setInstrument] = useState(editingTrade?.instrument || 'EURUSD');
   const [direction, setDirection] = useState<Direction>(editingTrade?.direction || 'LONG');
   const [status, setStatus] = useState<TradeStatus>(editingTrade?.status || 'WIN');
@@ -788,7 +791,46 @@ export const TradeModal: React.FC<TradeModalProps> = ({
         {/* Footer Actions */}
         <div className="p-4 border-t border-[#1C2233] bg-[#0A0D14] flex items-center justify-between gap-3">
           <div className="text-[11px] font-mono text-gray-400">
-            {activeTab !== 'DETAILS' && (
+            {editingTrade && onDeleteTrade ? (
+              showDeleteConfirm ? (
+                <div className="flex items-center gap-2 bg-rose-950/70 border border-rose-700/60 p-1 px-2 rounded-xl">
+                  <span className="text-[10px] text-rose-200 font-semibold">Delete trade?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      Haptics.light();
+                      setShowDeleteConfirm(false);
+                    }}
+                    className="px-2 py-0.5 bg-[#151926] text-gray-300 rounded text-[10px] font-medium"
+                  >
+                    No
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      Haptics.warning();
+                      onDeleteTrade(editingTrade.id);
+                      onClose();
+                    }}
+                    className="px-2 py-0.5 bg-rose-600 hover:bg-rose-500 text-white rounded text-[10px] font-bold"
+                  >
+                    Yes, Delete
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    Haptics.light();
+                    setShowDeleteConfirm(true);
+                  }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-400 hover:text-white bg-rose-950/30 hover:bg-rose-900/50 border border-rose-800/40 transition flex items-center gap-1.5 active:scale-95"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Trade</span>
+                </button>
+              )
+            ) : activeTab !== 'DETAILS' ? (
               <button
                 type="button"
                 onClick={() => setActiveTab('DETAILS')}
@@ -796,14 +838,14 @@ export const TradeModal: React.FC<TradeModalProps> = ({
               >
                 ← Back to Details
               </button>
-            )}
+            ) : null}
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white bg-[#151926] transition"
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400 hover:text-white bg-[#151926] transition active:scale-95"
             >
               Cancel
             </button>
@@ -812,7 +854,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
               onClick={handleSave}
               className="px-5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 shadow-lg shadow-emerald-500/20 active:scale-95 transition"
             >
-              Save Trade
+              {editingTrade ? 'Update Trade' : 'Save Trade'}
             </button>
           </div>
         </div>
