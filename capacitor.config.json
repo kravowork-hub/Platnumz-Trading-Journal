@@ -10,6 +10,11 @@
     "backgroundColor": "#090B10"
   },
   "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "style": "DARK",
+      "hidden": false
+    },
     "StatusBar": {
       "style": "DARK",
       "backgroundColor": "#090B10",
