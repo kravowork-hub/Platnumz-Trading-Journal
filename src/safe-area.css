@@ -31,6 +31,96 @@
   );
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+html {
+  background: #090B10;
+}
+
+body {
+  margin: 0;
+  box-sizing: border-box;
+  overscroll-behavior-y: none;
+}
+
+body,
+body * {
+  box-sizing: border-box;
+}
+
+/*
+ * The native Android WebView is edge-to-edge. The React shell therefore
+ * consumes the real status-bar inset so page content never starts underneath
+ * the clock / notification icons.
+ */
+#root > .min-h-screen {
+  padding-top: var(--app-safe-top);
+  padding-left: var(--app-safe-left);
+  padding-right: var(--app-safe-right);
+  padding-bottom: var(--app-safe-bottom);
+}
+
+/* Bottom navigation already uses pb-safe; keep it above the Android gesture/nav area. */
+#root nav.fixed.bottom-0 {
+  padding-bottom: max(var(--app-safe-bottom), 8px) !important;
+}
+
+/* Fast Trade Entry / other fixed sheets. */
+.trade-modal-overlay {
+  padding-top: var(--app-safe-top) !important;
+  padding-bottom: var(--app-safe-bottom) !important;
+  padding-left: max(var(--app-safe-left), 0px);
+  padding-right: max(var(--app-safe-right), 0px);
+}
+
+.trade-modal-sheet {
+  margin-top: 0;
+  margin-bottom: 0;
+  max-height: calc(
+    100dvh -
+    var(--app-safe-top) -
+    var(--app-safe-bottom) -
+    12px
+  ) !important;
+}
+
+.trade-modal-footer {
+  padding-bottom: max(var(--app-safe-bottom), 12px) !important;
+}
+
+/* The old generic selector is retained for any legacy modal still using it. */
+@media (max-width: 639px) {
+  .fixed.inset-0.z-50 {
+    padding-bottom: var(--app-safe-bottom) !important;
+  }
+
+  .fixed.inset-0.z-50 > div {
+    max-height: min(
+      92vh,
+      calc(100dvh - var(--app-safe-top) - var(--app-safe-bottom) - 8px)
+    ) !important;
+  }
+}
+
+/*
+ * Small visual cleanup for the dashboard on phones:
+ * keep the first card away from the status bar and reduce the heavy outer
+ * spacing without changing the existing desktop layout.
+ */
+@media (max-width: 639px) {
+  #root main {
+    padding-top: 8px;
+  }
+
+  #root main > :first-child {
+    margin-top: 0;
+  }
+}
+
 .pt-safe {
   padding-top: var(--app-safe-top) !important;
 }
@@ -50,22 +140,4 @@
 .safe-area-all {
   padding-top: var(--app-safe-top);
   padding-bottom: var(--app-safe-bottom);
-}
-
-/*
- * Fast Trade Entry is a bottom sheet on phones. Its fixed overlay currently
- * uses p-0, so the Android navigation bar can otherwise sit over the footer.
- * Reserve the real navigation-bar inset without changing desktop/tablet layout.
- */
-@media (max-width: 639px) {
-  .fixed.inset-0.z-50 {
-    padding-bottom: var(--app-safe-bottom) !important;
-  }
-
-  .fixed.inset-0.z-50 > div {
-    max-height: min(
-      92vh,
-      calc(100dvh - var(--app-safe-bottom) - 8px)
-    ) !important;
-  }
 }
