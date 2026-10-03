@@ -29,6 +29,14 @@ jobs:
       - name: Build web application
         run: npm run build
 
+      - name: Install Capacitor Android
+        run: npm install @capacitor/android@8.5.2
+
+      - name: Recreate Android platform
+        run: |
+          rm -rf android
+          npx cap add android
+
       - name: Sync Capacitor Android
         run: npx cap sync android
 
@@ -37,10 +45,6 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-
-      - name: Generate Gradle wrapper
-        working-directory: android
-        run: gradle wrapper --gradle-version 8.13
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew
