@@ -1,10 +1,12 @@
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import './safe-area.css';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 
-// Native Android status bar color blending
+// Native Android system-bar styling. MainActivity exposes WindowInsets as
+// CSS variables consumed by safe-area.css.
 if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
   try {
     StatusBar.setStyle({ style: Style.Dark }).catch(() => {});

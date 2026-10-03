@@ -1,18 +1,33 @@
 /*
- * Kravo Trading Journal — Android system-bar safe-area fix
- * Capacitor 8 SystemBars injects --safe-area-inset-* CSS variables.
- * Browser env() values remain as fallbacks for PWA/web builds.
+ * Kravo Trading Journal — Android system-bar safe-area handling.
+ *
+ * MainActivity publishes WindowInsets as --native-safe-area-*.
+ * Browser/PWA builds fall back to env(safe-area-inset-*).
  */
 
 :root {
   --app-safe-top: max(
+    var(--native-safe-area-top, 0px),
     var(--safe-area-inset-top, 0px),
     env(safe-area-inset-top, 0px)
   );
 
   --app-safe-bottom: max(
+    var(--native-safe-area-bottom, 0px),
     var(--safe-area-inset-bottom, 0px),
     env(safe-area-inset-bottom, 0px)
+  );
+
+  --app-safe-left: max(
+    var(--native-safe-area-left, 0px),
+    var(--safe-area-inset-left, 0px),
+    env(safe-area-inset-left, 0px)
+  );
+
+  --app-safe-right: max(
+    var(--native-safe-area-right, 0px),
+    var(--safe-area-inset-right, 0px),
+    env(safe-area-inset-right, 0px)
   );
 }
 
@@ -24,7 +39,6 @@
   padding-bottom: max(var(--app-safe-bottom), 16px) !important;
 }
 
-/* Use these on full-screen app containers when needed. */
 .safe-area-top {
   padding-top: var(--app-safe-top);
 }
@@ -36,4 +50,22 @@
 .safe-area-all {
   padding-top: var(--app-safe-top);
   padding-bottom: var(--app-safe-bottom);
+}
+
+/*
+ * Fast Trade Entry is a bottom sheet on phones. Its fixed overlay currently
+ * uses p-0, so the Android navigation bar can otherwise sit over the footer.
+ * Reserve the real navigation-bar inset without changing desktop/tablet layout.
+ */
+@media (max-width: 639px) {
+  .fixed.inset-0.z-50 {
+    padding-bottom: var(--app-safe-bottom) !important;
+  }
+
+  .fixed.inset-0.z-50 > div {
+    max-height: min(
+      92vh,
+      calc(100dvh - var(--app-safe-bottom) - 8px)
+    ) !important;
+  }
 }
