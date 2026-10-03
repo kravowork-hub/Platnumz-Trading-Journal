@@ -1,5 +1,5 @@
-// Kravo Trading Journal - Progressive Web App Service Worker
-const CACHE_NAME = 'kravo-vault-v1';
+// Kravo Trading Journal - Offline-First Native Engine Service Worker
+const CACHE_NAME = 'kravo-offline-vault-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -7,69 +7,67 @@ const PRECACHE_ASSETS = [
   '/icon.svg',
   '/pwa-192x192.png',
   '/pwa-512x512.png',
+  '/pwa-maskable-512x512.png',
   '/apple-touch-icon.png',
 ];
 
-// Install event: Precache core shell
+// Install: Cache core application shell instantly
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(PRECACHE_ASSETS).catch((err) => {
-        console.warn('Precache partial fallback:', err);
+        console.warn('Precache notice:', err);
       });
     })
   );
 });
 
-// Activate event: Clean up previous caches & claim clients immediately
+// Activate: Immediately claim all open windows
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
+    caches.keys().then((keys) => {
       return Promise.all(
-        cacheNames.map((name) => {
-          if (name !== CACHE_NAME) {
-            return caches.delete(name);
-          }
-        })
+        keys.map((k) => (k !== CACHE_NAME ? caches.delete(k) : null))
       );
     }).then(() => self.clients.claim())
   );
 });
 
-// Fetch event: Network-first with cache fallback (required for Chrome installability)
+// Fetch: Offline-First Cache Strategy (Cache with Network fallback and background revalidation)
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests and http/https schemes
   if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) {
     return;
   }
 
-  // Navigation requests: try network first, then cache index.html
+  // Navigation requests (HTML document): Cache-first for instant native app startup
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(async () => {
-          const cache = await caches.open(CACHE_NAME);
-          const cached = await cache.match('/index.html');
-          return cached || (await cache.match('/')) || new Response('Offline', { status: 200, headers: { 'Content-Type': 'text/plain' } });
-        })
+      caches.match('/index.html').then((cachedIndex) => {
+        // Fetch fresh copy in background to keep cache hot
+        const fetchPromise = fetch(event.request)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              const clone = networkResponse.clone();
+              caches.open(CACHE_NAME).then((c) => c.put('/index.html', clone));
+            }
+            return networkResponse;
+          })
+          .catch(() => null);
+
+        // Return instant cached shell if available, otherwise wait for network
+        return cachedIndex || fetchPromise || caches.match('/');
+      })
     );
     return;
   }
 
-  // Static assets & APIs
+  // All other assets (JS chunks, CSS, images, fonts): Stale-While-Revalidate
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request)
         .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          if (networkResponse && networkResponse.status === 200) {
             const clone = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           }

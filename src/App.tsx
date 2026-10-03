@@ -32,6 +32,10 @@ import { ImageViewerModal } from './components/ImageViewerModal';
 import { AiChartLabModal } from './components/AiChartLabModal';
 import { ExportReportModal } from './components/ExportReportModal';
 import { AndroidCodeExportModal } from './components/AndroidCodeExportModal';
+import { PwaBuilderModal } from './components/PwaBuilderModal';
+import { AndroidToast, ToastMessage } from './components/AndroidToast';
+import { useAndroidBackButton } from './hooks/useAndroidBackButton';
+import { Haptics } from './utils/haptics';
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -56,12 +60,69 @@ export default function App() {
   const [riskCalcOpen, setRiskCalcOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [androidExportModalOpen, setAndroidExportModalOpen] = useState(false);
+  const [pwaBuilderModalOpen, setPwaBuilderModalOpen] = useState(false);
   const [aiLabModalOpen, setAiLabModalOpen] = useState(false);
 
   // Image Viewer
   const [imageViewer, setImageViewer] = useState<{ isOpen: boolean; url: string | null; caption?: string }>({
     isOpen: false,
     url: null,
+  });
+
+  // Native Toast State
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  const showToast = useCallback((message: string, type: 'INFO' | 'SUCCESS' | 'WARNING' = 'INFO') => {
+    setToast({ id: String(Date.now()), type, message });
+  }, []);
+
+  // Native Android Hardware Back Button Controller
+  const hasOpenModal = imageViewer.isOpen || 
+    !!selectedTradeId || 
+    tradeModalOpen || 
+    riskCalcOpen || 
+    reportModalOpen || 
+    androidExportModalOpen || 
+    pwaBuilderModalOpen || 
+    aiLabModalOpen;
+
+  const closeTopModal = useCallback(() => {
+    if (imageViewer.isOpen) {
+      setImageViewer({ isOpen: false, url: null });
+    } else if (selectedTradeId) {
+      setSelectedTradeId(null);
+    } else if (tradeModalOpen) {
+      setTradeModalOpen(false);
+      setEditingTrade(null);
+    } else if (riskCalcOpen) {
+      setRiskCalcOpen(false);
+    } else if (reportModalOpen) {
+      setReportModalOpen(false);
+    } else if (pwaBuilderModalOpen) {
+      setPwaBuilderModalOpen(false);
+    } else if (androidExportModalOpen) {
+      setAndroidExportModalOpen(false);
+    } else if (aiLabModalOpen) {
+      setAiLabModalOpen(false);
+    }
+  }, [imageViewer.isOpen, selectedTradeId, tradeModalOpen, riskCalcOpen, reportModalOpen, pwaBuilderModalOpen, androidExportModalOpen, aiLabModalOpen]);
+
+  const canGoBackView = secondaryView !== 'NONE' || currentTab !== 'dashboard';
+
+  const goBackView = useCallback(() => {
+    if (secondaryView !== 'NONE') {
+      setSecondaryView('NONE');
+    } else if (currentTab !== 'dashboard') {
+      setCurrentTab('dashboard');
+    }
+  }, [secondaryView, currentTab]);
+
+  useAndroidBackButton({
+    hasOpenModal,
+    closeTopModal,
+    canGoBackView,
+    goBackView,
+    onExitNotice: () => showToast('Press back again to exit Kravo', 'INFO'),
   });
 
   // Load all data from Room IndexedDB
@@ -104,6 +165,8 @@ export default function App() {
     setTrades(updated);
     setTradeModalOpen(false);
     setEditingTrade(null);
+    Haptics.success();
+    showToast(editingTrade ? 'Trade updated in offline database' : 'Trade recorded to offline vault', 'SUCCESS');
   };
 
   const handleDeleteTrade = async (tradeId: string) => {
@@ -111,6 +174,8 @@ export default function App() {
     const updated = await kravoDB.getTrades();
     setTrades(updated);
     if (selectedTradeId === tradeId) setSelectedTradeId(null);
+    Haptics.warning();
+    showToast('Trade removed from database', 'WARNING');
   };
 
   const handleUpdateReview = async (tradeId: string, review: PostTradeReview) => {
@@ -120,6 +185,8 @@ export default function App() {
     await kravoDB.saveTrade(updatedTrade);
     const updated = await kravoDB.getTrades();
     setTrades(updated);
+    Haptics.success();
+    showToast('Post-trade review saved', 'SUCCESS');
   };
 
   // Goals Operations
@@ -129,12 +196,16 @@ export default function App() {
       : [...goals, goal];
     await kravoDB.saveGoals(nextGoals);
     setGoals(nextGoals);
+    Haptics.success();
+    showToast('Trading goal saved', 'SUCCESS');
   };
 
   const handleDeleteGoal = async (goalId: string) => {
     const nextGoals = goals.filter(g => g.id !== goalId);
     await kravoDB.saveGoals(nextGoals);
     setGoals(nextGoals);
+    Haptics.warning();
+    showToast('Goal removed', 'INFO');
   };
 
   // Daily Review Operations
@@ -142,12 +213,16 @@ export default function App() {
     await kravoDB.saveDailyReview(review);
     const updated = await kravoDB.getDailyReviews();
     setDailyReviews(updated);
+    Haptics.success();
+    showToast('Daily review logged', 'SUCCESS');
   };
 
   // Settings Operation
   const handleUpdateSettings = async (newSettings: AccountSettings) => {
     await kravoDB.saveSettings(newSettings);
     setSettings(newSettings);
+    Haptics.success();
+    showToast('Vault settings updated', 'SUCCESS');
   };
 
   const handleOpenEditTrade = (trade: Trade) => {
@@ -204,6 +279,7 @@ export default function App() {
         appName={settings.appName}
         isLocked={isLocked}
         onOpenApkModal={() => setAndroidExportModalOpen(true)}
+        onOpenPwaBuilder={() => setPwaBuilderModalOpen(true)}
       />
 
       {/* Main Container */}
@@ -252,6 +328,7 @@ export default function App() {
                 onOpenGoals={() => setSecondaryView('GOALS')}
                 onOpenReviews={() => setSecondaryView('REVIEWS')}
                 onNavigateTab={(tab) => setCurrentTab(tab)}
+                onOpenPwaBuilder={() => setPwaBuilderModalOpen(true)}
               />
             )}
 
@@ -293,6 +370,7 @@ export default function App() {
                 onOpenAndroidExportModal={() => setAndroidExportModalOpen(true)}
                 onOpenAiLabModal={() => setAiLabModalOpen(true)}
                 onDataReset={loadDatabaseData}
+                onOpenPwaBuilder={() => setPwaBuilderModalOpen(true)}
               />
             )}
           </>
@@ -370,6 +448,14 @@ export default function App() {
         />
       )}
 
+      {/* PWABuilder Helper & Launcher Modal */}
+      {pwaBuilderModalOpen && (
+        <PwaBuilderModal
+          isOpen={pwaBuilderModalOpen}
+          onClose={() => setPwaBuilderModalOpen(false)}
+        />
+      )}
+
       {/* Future AI Vision Lab Modal */}
       {aiLabModalOpen && (
         <AiChartLabModal
@@ -387,6 +473,9 @@ export default function App() {
           onClose={() => setImageViewer({ isOpen: false, url: null })}
         />
       )}
+
+      {/* Native Android Toast Snackbar */}
+      <AndroidToast toast={toast} onDismiss={() => setToast(null)} />
 
     </div>
   );

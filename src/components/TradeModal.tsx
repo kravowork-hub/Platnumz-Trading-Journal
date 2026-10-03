@@ -17,6 +17,7 @@ import {
   formatCurrency, 
   formatR 
 } from '../utils/calculations';
+import { Haptics } from '../utils/haptics';
 import { 
   X, 
   Camera, 
@@ -119,6 +120,7 @@ export const TradeModal: React.FC<TradeModalProps> = ({
 
   // Screenshots
   const [screenshots, setScreenshots] = useState<ScreenshotAttachment[]>(editingTrade?.screenshots || []);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Update setup list when strategy changes
   useEffect(() => {
@@ -187,10 +189,13 @@ export const TradeModal: React.FC<TradeModalProps> = ({
   };
 
   const handleSave = () => {
-    if (!instrument || numEntry <= 0 || numStop <= 0) {
-      alert('Please enter valid Instrument, Entry price, and Stop Loss.');
+    if (!instrument.trim() || numEntry <= 0 || numStop <= 0) {
+      Haptics.warning();
+      setFormError('Please enter a valid instrument, entry price, and stop loss.');
       return;
     }
+    setFormError(null);
+    Haptics.success();
 
     const tradeToSave: Trade = {
       id: editingTrade?.id || `trade_${Date.now()}`,
@@ -260,6 +265,19 @@ export const TradeModal: React.FC<TradeModalProps> = ({
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Form Error Banner */}
+        {formError && (
+          <div className="mx-4 mt-2.5 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between">
+            <span className="flex items-center gap-1.5 font-medium">
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+              {formError}
+            </span>
+            <button onClick={() => setFormError(null)} className="p-1 hover:text-white">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Tab Switcher: Details | Checklist | Screenshots */}
         <div className="flex border-b border-[#1C2233] px-4 bg-[#0A0D14]">

@@ -6,7 +6,15 @@
   "android": {
     "allowMixedContent": true,
     "captureInput": true,
-    "webContentsDebuggingEnabled": false
+    "webContentsDebuggingEnabled": false,
+    "backgroundColor": "#090B10"
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#090B10",
+      "overlaysWebView": false
+    }
   },
   "server": {
     "androidScheme": "https"

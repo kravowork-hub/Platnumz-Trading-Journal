@@ -1,0 +1,22 @@
+{
+	"appId": "com.kravo.tradingjournal",
+	"appName": "Kravo Trading Journal",
+	"webDir": "dist",
+	"bundledWebRuntime": false,
+	"android": {
+		"allowMixedContent": true,
+		"captureInput": true,
+		"webContentsDebuggingEnabled": false,
+		"backgroundColor": "#090B10"
+	},
+	"plugins": {
+		"StatusBar": {
+			"style": "DARK",
+			"backgroundColor": "#090B10",
+			"overlaysWebView": false
+		}
+	},
+	"server": {
+		"androidScheme": "https"
+	}
+}

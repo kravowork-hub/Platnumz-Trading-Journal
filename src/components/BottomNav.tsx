@@ -7,6 +7,7 @@ import {
   Settings, 
   Plus 
 } from 'lucide-react';
+import { Haptics } from '../utils/haptics';
 
 export type NavTab = 'dashboard' | 'journal' | 'analytics' | 'calendar' | 'settings';
 
@@ -44,7 +45,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 {/* Center Elevated FAB */}
                 <div className="relative -top-5 flex flex-col items-center">
                   <button
-                    onClick={onOpenQuickTrade}
+                    onClick={() => {
+                      Haptics.medium();
+                      onOpenQuickTrade();
+                    }}
                     className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 text-black flex items-center justify-center shadow-lg shadow-emerald-500/25 active:scale-95 transition-transform border border-emerald-300/40 focus:outline-none"
                     title="Quick Trade Entry (<1 min)"
                     aria-label="Add Trade"
@@ -59,7 +63,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
                 {/* Tab 3: Analytics */}
                 <button
                   key={tab.id}
-                  onClick={() => onTabChange(tab.id)}
+                  onClick={() => {
+                    Haptics.light();
+                    onTabChange(tab.id);
+                  }}
                   className={`flex flex-col items-center justify-center flex-1 h-full py-1 transition-colors select-none ${
                     isActive ? 'text-emerald-400' : 'text-gray-400 hover:text-gray-300'
                   }`}
@@ -82,7 +89,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           return (
             <button
               key={tab.id}
-              onClick={() => onTabChange(tab.id)}
+              onClick={() => {
+                Haptics.light();
+                onTabChange(tab.id);
+              }}
               className={`flex flex-col items-center justify-center flex-1 h-full py-1 transition-colors select-none ${
                 isActive ? 'text-emerald-400' : 'text-gray-400 hover:text-gray-300'
               }`}

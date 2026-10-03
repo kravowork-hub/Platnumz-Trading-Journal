@@ -1,14 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Wifi, WifiOff, BatteryCharging, ShieldCheck, Download } from 'lucide-react';
+import { Wifi, WifiOff, BatteryCharging, ShieldCheck, Download, ExternalLink } from 'lucide-react';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
+import { getPwaBuilderUrl } from '../utils/pwaBuilder';
 
 interface AndroidStatusBarProps {
   appName?: string;
   isLocked?: boolean;
   onOpenApkModal?: () => void;
+  onOpenPwaBuilder?: () => void;
 }
 
-export const AndroidStatusBar: React.FC<AndroidStatusBarProps> = ({ isLocked, onOpenApkModal }) => {
+export const AndroidStatusBar: React.FC<AndroidStatusBarProps> = ({ 
+  isLocked, 
+  onOpenApkModal,
+  onOpenPwaBuilder 
+}) => {
   const isOnline = useOnlineStatus();
   const [time, setTime] = useState<string>('');
 
@@ -31,14 +37,37 @@ export const AndroidStatusBar: React.FC<AndroidStatusBarProps> = ({ isLocked, on
           TERMINAL
         </span>
         {onOpenApkModal && (
-          <button
-            onClick={onOpenApkModal}
-            className="flex items-center gap-1 text-[10px] font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 px-1.5 py-0.5 rounded shadow-sm transition active:scale-95"
-            title="Install or Build APK"
-          >
-            <Download className="w-2.5 h-2.5 stroke-[3]" />
-            <span>APK</span>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onOpenApkModal}
+              className="flex items-center gap-1 text-[10px] font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 px-1.5 py-0.5 rounded shadow-sm transition active:scale-95"
+              title="Install or Build APK"
+            >
+              <Download className="w-2.5 h-2.5 stroke-[3]" />
+              <span>APK</span>
+            </button>
+            {onOpenPwaBuilder ? (
+              <button
+                onClick={onOpenPwaBuilder}
+                className="flex items-center gap-1 text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-500 px-1.5 py-0.5 rounded shadow-sm transition active:scale-95"
+                title="Run on Microsoft PWABuilder"
+              >
+                <ExternalLink className="w-2.5 h-2.5 stroke-[2.5]" />
+                <span>PWA Builder</span>
+              </button>
+            ) : (
+              <a
+                href={getPwaBuilderUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-500 px-1.5 py-0.5 rounded shadow-sm transition active:scale-95"
+                title="Run automatically on Microsoft PWABuilder"
+              >
+                <ExternalLink className="w-2.5 h-2.5 stroke-[2.5]" />
+                <span>PWA Builder</span>
+              </a>
+            )}
+          </div>
         )}
       </div>
 

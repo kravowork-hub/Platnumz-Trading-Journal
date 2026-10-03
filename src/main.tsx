@@ -1,9 +1,18 @@
 import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { registerSW } from 'virtual:pwa-register';
+import { StatusBar, Style } from '@capacitor/status-bar';
+import { Capacitor } from '@capacitor/core';
 
-// Register service worker immediately for Chrome PWA installability and offline-first performance
+// Native Android status bar color blending
+if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+  try {
+    StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+    StatusBar.setBackgroundColor({ color: '#090B10' }).catch(() => {});
+  } catch {}
+}
+
+// Register service worker immediately for offline-first native performance
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker

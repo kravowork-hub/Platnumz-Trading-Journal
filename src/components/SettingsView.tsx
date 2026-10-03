@@ -17,9 +17,11 @@ import {
   Code,
   CheckCircle2,
   DollarSign,
-  AlertTriangle
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
+import { getPwaBuilderUrl } from '../utils/pwaBuilder';
 
 interface SettingsViewProps {
   settings: AccountSettings;
@@ -28,6 +30,7 @@ interface SettingsViewProps {
   onOpenAndroidExportModal: () => void;
   onOpenAiLabModal: () => void;
   onDataReset: () => void;
+  onOpenPwaBuilder?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -37,6 +40,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onOpenAndroidExportModal,
   onOpenAiLabModal,
   onDataReset,
+  onOpenPwaBuilder,
 }) => {
   const [localSettings, setLocalSettings] = useState<AccountSettings>(settings);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -424,6 +428,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           </button>
         </div>
+
+        {/* 1-Click PWABuilder Online Package Generator */}
+        <button
+          onClick={onOpenPwaBuilder}
+          className="w-full text-left p-3 bg-gradient-to-r from-blue-950/50 via-indigo-950/40 to-slate-900/60 hover:from-blue-900/50 hover:to-indigo-900/50 border border-blue-800/40 hover:border-blue-600/60 rounded-xl flex items-center justify-between text-xs text-white transition group"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-blue-600/30 text-blue-400 flex items-center justify-center shrink-0">
+              <ExternalLink className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-gray-100 flex items-center gap-1.5">
+                Run on Microsoft PWABuilder
+                <span className="text-[9px] bg-blue-600/40 text-blue-300 px-1 rounded font-mono font-bold">.APK / .AAB</span>
+              </span>
+              <span className="text-[10px] text-gray-400">Auto-audit manifest & generate signed package in 1-click</span>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-950/80 px-2 py-0.5 rounded border border-blue-700/50 group-hover:bg-blue-600 group-hover:text-white transition">
+            LAUNCH ↗
+          </span>
+        </button>
       </div>
 
       {/* Save Settings Bar */}

@@ -26,8 +26,11 @@ import {
   ChevronRight,
   Filter,
   BarChart2,
-  Sparkles
+  Sparkles,
+  Smartphone,
+  ExternalLink
 } from 'lucide-react';
+import { getPwaBuilderUrl } from '../utils/pwaBuilder';
 
 interface DashboardViewProps {
   trades: Trade[];
@@ -38,6 +41,7 @@ interface DashboardViewProps {
   onOpenGoals: () => void;
   onOpenReviews: () => void;
   onNavigateTab: (tab: any) => void;
+  onOpenPwaBuilder?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -49,6 +53,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenGoals,
   onOpenReviews,
   onNavigateTab,
+  onOpenPwaBuilder,
 }) => {
   const [period, setPeriod] = useState<PeriodFilter>('THIS_MONTH');
   const [customRange, setCustomRange] = useState({
@@ -337,6 +342,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <span className="text-[9px] text-gray-500">Self Evaluation</span>
         </button>
       </div>
+
+      {/* 1-Click PWABuilder Android Package Banner */}
+      <button
+        onClick={onOpenPwaBuilder}
+        className="w-full text-left bg-gradient-to-r from-blue-950/40 via-indigo-950/40 to-[#121622] hover:from-blue-900/40 hover:to-indigo-900/40 border border-blue-900/30 hover:border-blue-700/50 p-2.5 rounded-2xl flex items-center justify-between transition group shadow-sm"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center shrink-0">
+            <Smartphone className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="text-xs font-bold text-gray-200 block group-hover:text-blue-300 transition">
+              Build Android .APK on PWABuilder
+            </span>
+            <span className="text-[10px] text-gray-400">
+              Auto-audit report card & generate signed Google Play package
+            </span>
+          </div>
+        </div>
+        <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-950/80 px-2.5 py-1 rounded-lg border border-blue-800/40 group-hover:bg-blue-600 group-hover:text-white transition flex items-center gap-1 shrink-0">
+          <span>Run</span>
+          <ExternalLink className="w-3 h-3" />
+        </span>
+      </button>
 
       {/* Recent Trades Stream */}
       <div className="bg-[#121622] rounded-2xl p-4 border border-[#1E2538]">
